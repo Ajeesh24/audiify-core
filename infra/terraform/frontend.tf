@@ -158,7 +158,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     acm_certificate_arn            = var.certificate_arn != "" ? var.certificate_arn : null
     cloudfront_default_certificate = var.certificate_arn == "" ? true : null
     minimum_protocol_version       = var.certificate_arn != "" ? "TLSv1.2_2021" : null
-    ssl_support_method            = var.certificate_arn != "" ? "sni-only" : null
+    ssl_support_method             = var.certificate_arn != "" ? "sni-only" : null
   }
 
   # Optional: Enable access logs
