@@ -214,7 +214,7 @@ jobs:
     - name: Terraform Init
       run: |
         cd infra/terraform
-        terraform init -backend=false
+        terraform init
 
     - name: Terraform Format Check
       run: |

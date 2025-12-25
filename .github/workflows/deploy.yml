@@ -121,15 +121,21 @@ jobs:
     - name: Terraform Init
       run: |
         cd infra/terraform
+        echo "Initializing Terraform with S3 backend..."
         terraform init
+        echo "Terraform init completed successfully"
+        terraform --version
+        ls -la .terraform/ || echo "No .terraform directory found"
 
     - name: Terraform Plan
       run: |
         cd infra/terraform
+        echo "Running Terraform plan..."
         terraform plan \
           -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
           -var-file="environments/dev.tfvars" \
           -out=tfplan
+        echo "Terraform plan completed successfully"
 
     - name: Terraform Apply
       run: |
