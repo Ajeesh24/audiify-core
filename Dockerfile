@@ -6,12 +6,12 @@ ENV PYTHONPATH=/var/task
 ENV AWS_LAMBDA_FUNCTION_NAME=audifyy-backend
 
 # Install system dependencies required for our application
-RUN dnf update -y && \
-    dnf install -y \
+RUN yum update -y && \
+    yum install -y \
         gcc \
         gcc-c++ \
         make \
-        libnss3 \
+        nss \
         libXrandr \
         libXcomposite \
         libXcursor \
@@ -21,16 +21,15 @@ RUN dnf update -y && \
         libXtst \
         cups-libs \
         libXScrnSaver \
-        libXrandr \
         GConf2 \
         alsa-lib \
         atk \
         gtk3 \
         libdrm \
         libxkbcommon \
-        libatspi \
+        at-spi2-atk \
         libXss \
-    && dnf clean all
+    && yum clean all
 
 # Copy requirements and install Python dependencies
 COPY backend/requirements.txt ${LAMBDA_TASK_ROOT}/
