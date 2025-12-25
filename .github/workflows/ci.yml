@@ -7,8 +7,13 @@ on:
     branches: [ main, develop ]
 
 env:
+  AWS_REGION: ap-southeast-1
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.11'
+
+permissions:
+  id-token: write   # This is required for requesting the JWT
+  contents: read    # This is required for actions/checkout
 
 jobs:
   lint-and-test:
@@ -186,20 +191,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Configure AWS credentials (AssumeRoleWithWebIdentity)
+      uses: aws-actions/configure-aws-credentials@v4.0.2
+      with:
+        role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+        role-session-name: "GitHubActions"
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Configure AWS credentials (AssumeRole)
+      uses: aws-actions/configure-aws-credentials@v4.0.2
+      with:
+        role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+        role-session-name: "GitHubActions"
+        aws-region: ${{ env.AWS_REGION }}
+        role-chaining: true
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ~1.0
 
-    - name: Terraform Format Check
-      run: |
-        cd infra/terraform
-        terraform fmt -check
-
     - name: Terraform Init
       run: |
         cd infra/terraform
         terraform init -backend=false
+
+    - name: Terraform Format Check
+      run: |
+        cd infra/terraform
+        terraform fmt -check
 
     - name: Terraform Validate
       run: |
