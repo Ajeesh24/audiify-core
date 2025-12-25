@@ -29,11 +29,19 @@ RUN yum update -y && \
         libxkbcommon \
         at-spi2-atk \
         libXss \
+        curl \
     && yum clean all
+
+# Install Rust (required for tiktoken compilation)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy requirements and install Python dependencies
 COPY backend/requirements.txt ${LAMBDA_TASK_ROOT}/
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Upgrade pip and install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers (optimized for Lambda)
 RUN playwright install chromium --with-deps

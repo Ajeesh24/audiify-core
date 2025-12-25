@@ -47,6 +47,6 @@ locals {
   }
 
   # Generate unique names
-  s3_bucket_name = "${local.project_name}-frontend-${var.environment}-${random_string.suffix.result}"
+  s3_bucket_name       = "${local.project_name}-frontend-${var.environment}-${random_string.suffix.result}"
   lambda_function_name = "${local.project_name}-backend-${var.environment}"
 }

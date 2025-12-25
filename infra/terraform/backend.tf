@@ -138,9 +138,9 @@ resource "aws_ecr_lifecycle_policy" "lambda_backend" {
         rulePriority = 1
         description  = "Keep last 10 images"
         selection = {
-          tagStatus     = "any"
-          countType     = "imageCountMoreThan"
-          countNumber   = 10
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
         }
         action = {
           type = "expire"
@@ -153,8 +153,8 @@ resource "aws_ecr_lifecycle_policy" "lambda_backend" {
 # Lambda function
 resource "aws_lambda_function" "backend" {
   function_name = "${local.project_name}-backend-${var.environment}"
-  role         = aws_iam_role.lambda_execution_role.arn
-  package_type = "Image"
+  role          = aws_iam_role.lambda_execution_role.arn
+  package_type  = "Image"
 
   # Will be updated by GitHub Actions with actual image URI
   image_uri = "${aws_ecr_repository.lambda_backend.repository_url}:latest"
@@ -164,11 +164,11 @@ resource "aws_lambda_function" "backend" {
 
   environment {
     variables = {
-      ENVIRONMENT       = var.environment
-      AWS_DEFAULT_REGION = var.aws_region
-      CORS_ORIGINS      = jsonencode(var.cors_origins)
-      AUDIO_BUCKET_NAME = aws_s3_bucket.audio_storage.bucket
-      TEMP_DIR          = "/tmp"
+      ENVIRONMENT              = var.environment
+      AWS_DEFAULT_REGION       = var.aws_region
+      CORS_ORIGINS             = jsonencode(var.cors_origins)
+      AUDIO_BUCKET_NAME        = aws_s3_bucket.audio_storage.bucket
+      TEMP_DIR                 = "/tmp"
       OPENAI_API_KEY_PARAMETER = aws_ssm_parameter.openai_api_key.name
     }
   }
@@ -238,8 +238,8 @@ resource "aws_api_gateway_integration" "lambda_integration" {
   http_method = aws_api_gateway_method.proxy_method.http_method
 
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.backend.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.backend.invoke_arn
 }
 
 # API Gateway Method for root path
@@ -257,8 +257,8 @@ resource "aws_api_gateway_integration" "lambda_root" {
   http_method = aws_api_gateway_method.proxy_root.http_method
 
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.backend.invoke_arn
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.backend.invoke_arn
 }
 
 # API Gateway Deployment
@@ -296,12 +296,12 @@ resource "aws_api_gateway_stage" "backend_stage" {
     destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
     format = jsonencode({
       requestId      = "$context.requestId"
-      ip            = "$context.identity.sourceIp"
-      requestTime   = "$context.requestTime"
-      httpMethod    = "$context.httpMethod"
-      resourcePath  = "$context.resourcePath"
-      status        = "$context.status"
-      protocol      = "$context.protocol"
+      ip             = "$context.identity.sourceIp"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      protocol       = "$context.protocol"
       responseLength = "$context.responseLength"
     })
   }
@@ -357,25 +357,4 @@ resource "aws_ssm_parameter" "openai_api_key" {
   value = var.openai_api_key
 
   tags = local.common_tags
-}
-
-# Output the API Gateway URL
-output "api_gateway_url" {
-  description = "URL of the API Gateway"
-  value       = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
-}
-
-output "lambda_function_name" {
-  description = "Name of the Lambda function"
-  value       = aws_lambda_function.backend.function_name
-}
-
-output "lambda_function_arn" {
-  description = "ARN of the Lambda function"
-  value       = aws_lambda_function.backend.arn
-}
-
-output "ecr_repository_url" {
-  description = "URL of the ECR repository"
-  value       = aws_ecr_repository.lambda_backend.repository_url
 }

@@ -106,7 +106,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
 
     min_ttl     = 0
-    default_ttl = 86400   # 1 day
+    default_ttl = 86400    # 1 day
     max_ttl     = 31536000 # 1 year
   }
 
@@ -177,8 +177,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     for_each = var.enable_cloudfront_logs ? [1] : []
     content {
       include_cookies = false
-      bucket         = aws_s3_bucket.logs[0].bucket_domain_name
-      prefix         = "cloudfront-logs/"
+      bucket          = aws_s3_bucket.logs[0].bucket_domain_name
+      prefix          = "cloudfront-logs/"
     }
   }
 
