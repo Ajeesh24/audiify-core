@@ -8,10 +8,9 @@ terraform {
   }
 
   backend "s3" {
-    # Configure this in terraform init
-    # bucket = "audifyy-terraform-state-${random-suffix}"
-    # key    = "audifyy/terraform.tfstate"
-    # region = "ap-southeast-1"
+    bucket = "audifyy-terraform-state"
+    key    = "audifyy/terraform.tfstate"
+    region = "ap-southeast-1"
   }
 }
 
