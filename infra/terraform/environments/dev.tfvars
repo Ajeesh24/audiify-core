@@ -1,5 +1,5 @@
 # Development environment configuration
-aws_region  = "ap-southeast-1"
+aws_region  = "ap-southeast-2"
 environment = "dev"
 
 # Domain configuration (leave empty for default domains)

@@ -18,7 +18,7 @@ on:
           - prod
 
 env:
-  AWS_REGION: ap-southeast-1
+  AWS_REGION: ap-southeast-2
   ECR_REPOSITORY: audifyy-lambda-backend
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.11'

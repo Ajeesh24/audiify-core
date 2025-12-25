@@ -10,7 +10,7 @@ terraform {
   backend "s3" {
     bucket = "audifyy-terraform-state"
     key    = "audifyy/terraform.tfstate"
-    region = "ap-southeast-1"
+    region = "ap-southeast-2"
   }
 }
 

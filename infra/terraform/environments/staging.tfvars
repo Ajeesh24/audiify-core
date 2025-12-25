@@ -1,5 +1,5 @@
 # Staging environment configuration
-aws_region  = "ap-southeast-1"
+aws_region  = "ap-southeast-2"
 environment = "staging"
 
 # Domain configuration (configure with your staging domain)

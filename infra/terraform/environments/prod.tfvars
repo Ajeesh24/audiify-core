@@ -1,5 +1,5 @@
 # Production environment configuration
-aws_region  = "ap-southeast-1"
+aws_region  = "ap-southeast-2"
 environment = "prod"
 
 # Domain configuration (configure with your production domain)
