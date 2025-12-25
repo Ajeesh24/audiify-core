@@ -107,6 +107,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "audio_storage" {
     id     = "delete_old_audio"
     status = "Enabled"
 
+    filter {}  # Apply to all objects in the bucket
+
     expiration {
       days = 7 # Delete audio files after 7 days
     }
