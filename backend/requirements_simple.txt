@@ -1,0 +1,14 @@
+fastapi[all]==0.104.*
+newspaper3k==0.2.*
+beautifulsoup4==4.12.*
+pydantic==2.5.*
+python-multipart==0.0.*
+aiofiles==23.2.*
+python-dotenv==1.0.*
+httpx==0.25.*
+openai>=1.10.0,<2.0
+lxml==4.9.*
+requests==2.31.*
+uvicorn[standard]==0.24.*
+slowapi==0.1.*
+pydantic-settings==2.1.*

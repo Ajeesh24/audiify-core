@@ -1,0 +1,301 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import { Card, CardContent } from './ui/card';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { audifyApi } from '@/services/api';
+
+interface AudioPlayerProps {
+  audioId: string;
+  content?: string;
+  title?: string;
+  mode?: 'full' | 'summary';
+}
+
+export default function AudioPlayer({ audioId, content, title, mode }: AudioPlayerProps) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Audio URL
+  const audioUrl = audifyApi.getAudioStreamUrl(audioId);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+      setIsLoading(false);
+    };
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+
+    const handleError = () => {
+      setError('Failed to load audio');
+      setIsLoading(false);
+    };
+
+    const handleCanPlay = () => {
+      setIsLoading(false);
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('canplay', handleCanPlay);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [audioUrl]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || isLoading) return;
+
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      audio.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const skipBackward = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Math.max(0, audio.currentTime - 15);
+  };
+
+  const skipForward = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    const progressBar = progressRef.current;
+    if (!audio || !progressBar || !duration) return;
+
+    const rect = progressBar.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const newTime = percent * duration;
+    audio.currentTime = newTime;
+  };
+
+  const toggleMute = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isMuted) {
+      audio.volume = volume;
+      setIsMuted(false);
+    } else {
+      audio.volume = 0;
+      setIsMuted(true);
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current;
+    const newVolume = parseFloat(e.target.value);
+
+    if (audio) {
+      audio.volume = newVolume;
+      setVolume(newVolume);
+      setIsMuted(newVolume === 0);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (!time || !isFinite(time)) return '0:00';
+
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  if (error) {
+    return (
+      <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl">
+        <CardContent className="p-6">
+          <div className="text-center text-red-400">
+            <Volume2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full"
+    >
+      <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
+        <CardContent className="p-6">
+          {/* Audio element */}
+          <audio ref={audioRef} src={audioUrl} preload="metadata" />
+
+          {/* Title */}
+          {title && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-white truncate">{title}</h3>
+              {mode && (
+                <p className="text-sm text-slate-400 capitalize">
+                  {mode === 'summary' ? 'AI Summary' : 'Full Article'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Progress bar */}
+          <div className="mb-4">
+            <div
+              ref={progressRef}
+              className="w-full h-2 bg-slate-700 rounded-full cursor-pointer"
+              onClick={handleProgressClick}
+            >
+              <motion.div
+                className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full"
+                style={{ width: `${progress}%` }}
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ type: "spring", stiffness: 400, damping: 40 }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-400 mt-1">
+              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-between">
+            {/* Main controls */}
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={skipBackward}
+                disabled={isLoading}
+                className="text-slate-400 hover:text-white"
+              >
+                <SkipBack className="w-5 h-5" />
+              </Button>
+
+              <Button
+                variant="gradient"
+                size="icon"
+                onClick={togglePlay}
+                disabled={isLoading}
+                className="w-12 h-12"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="w-6 h-6" />
+                ) : (
+                  <Play className="w-6 h-6 ml-0.5" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={skipForward}
+                disabled={isLoading}
+                className="text-slate-400 hover:text-white"
+              >
+                <SkipForward className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Volume controls */}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleMute}
+                className="text-slate-400 hover:text-white"
+              >
+                {isMuted ? (
+                  <VolumeX className="w-4 h-4" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </Button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={isMuted ? 0 : volume}
+                onChange={handleVolumeChange}
+                className="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+              />
+            </div>
+          </div>
+
+          {/* Content preview (optional) */}
+          {content && (
+            <div className="mt-4 p-4 bg-slate-800/50 rounded-lg max-h-32 overflow-y-auto">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                {content.substring(0, 200)}
+                {content.length > 200 && '...'}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Custom slider styles */}
+      <style jsx>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #8b5cf6;
+          cursor: pointer;
+          border: 2px solid #fff;
+          box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+        }
+
+        .slider::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #8b5cf6;
+          cursor: pointer;
+          border: 2px solid #fff;
+          box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+        }
+      `}</style>
+    </motion.div>
+  );
+}

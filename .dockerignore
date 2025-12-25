@@ -1,0 +1,92 @@
+# Lambda-specific Docker ignore
+# Git
+.git
+.gitignore
+.gitattributes
+README.md
+
+# Frontend files (not needed in Lambda image)
+frontend/
+infra/
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test files
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Audio files (these are generated at runtime)
+*.mp3
+*.wav
+*.opus
+
+# Node modules
+node_modules/
+
+# Development scripts
+start-dev.sh

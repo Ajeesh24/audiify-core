@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags -->
+    <title>Audifyy - Transform Articles to Audio</title>
+    <meta name="title" content="Audifyy - Transform Articles to Audio">
+    <meta name="description" content="Convert any article into crystal-clear audio with AI-powered summarization. Listen on the go.">
+    <meta name="author" content="Audifyy">
+    <meta name="keywords" content="text to speech, article reader, audio converter, TTS, AI summary">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://audifyy.com/">
+    <meta property="og:title" content="Audifyy - Transform Articles to Audio">
+    <meta property="og:description" content="Convert any article into crystal-clear audio with AI-powered summarization. Listen on the go.">
+    <meta property="og:image" content="/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://audifyy.com/">
+    <meta property="twitter:title" content="Audifyy - Transform Articles to Audio">
+    <meta property="twitter:description" content="Convert any article into crystal-clear audio with AI-powered summarization. Listen on the go.">
+    <meta property="twitter:image" content="/og-image.png">
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#8b5cf6" />
+    <meta name="background-color" content="#0f0f23" />
+    <meta name="display" content="standalone" />
+    <meta name="orientation" content="portrait" />
+
+    <!-- Apple PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Audifyy">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png">
+
+    <!-- Preload critical resources -->
+    <link rel="modulepreload" href="/src/main.tsx">
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Loading fallback -->
+    <noscript>
+      <div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f0f23, #1e1b4b, #0f0f23);
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+        padding: 2rem;
+      ">
+        <div style="
+          padding: 1rem;
+          background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+          border-radius: 1rem;
+          margin-bottom: 1rem;
+        ">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        </div>
+        <h1 style="font-size: 2rem; margin: 0 0 1rem 0; font-weight: 700;">Audifyy</h1>
+        <p style="margin: 0 0 2rem 0; opacity: 0.8;">Please enable JavaScript to use this application.</p>
+        <p style="font-size: 0.9rem; opacity: 0.6;">Transform articles into crystal-clear audio</p>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
