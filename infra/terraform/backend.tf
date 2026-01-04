@@ -158,8 +158,8 @@ resource "aws_lambda_function" "backend" {
   role          = aws_iam_role.lambda_execution_role.arn
   package_type  = "Image"
 
-  # Will be updated by GitHub Actions with actual image URI
-  image_uri = "${aws_ecr_repository.lambda_backend.repository_url}:latest"
+  # Image URI with semantic version tag
+  image_uri = "${aws_ecr_repository.lambda_backend.repository_url}:${var.image_tag}"
 
   timeout     = 900  # 15 minutes (maximum for Lambda)
   memory_size = 2048 # 2GB (sufficient for our processing)
@@ -186,11 +186,6 @@ resource "aws_lambda_function" "backend" {
   ]
 
   tags = local.common_tags
-
-  # Ignore changes to image_uri as it will be updated by CI/CD
-  lifecycle {
-    ignore_changes = [image_uri]
-  }
 }
 
 # CloudWatch Log Group for Lambda

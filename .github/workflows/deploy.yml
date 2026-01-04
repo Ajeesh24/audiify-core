@@ -82,7 +82,7 @@ jobs:
   # Deploy infrastructure
   deploy-infrastructure:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, deploy-backend]  # Now depends on backend being built first
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     outputs:
@@ -156,8 +156,11 @@ jobs:
   # Build and deploy backend Lambda
   deploy-backend:
     runs-on: ubuntu-latest
-    needs: [test, deploy-infrastructure]
+    needs: test  # Only depends on test, runs before infrastructure
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    outputs:
+      ecr-repository-url: ${{ steps.create-ecr.outputs.ecr_repository_url }}
 
     steps:
     - name: Checkout code
@@ -178,6 +181,57 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
         role-chaining: true
 
+    - name: Create ECR repository
+      id: create-ecr
+      run: |
+        # Create ECR repository if it doesn't exist
+        REPO_NAME="audifyy-lambda-backend"
+
+        # Check if repository exists
+        if ! aws ecr describe-repositories --repository-names $REPO_NAME --region $AWS_REGION >/dev/null 2>&1; then
+          echo "Creating ECR repository: $REPO_NAME"
+          aws ecr create-repository \
+            --repository-name $REPO_NAME \
+            --image-scanning-configuration scanOnPush=true \
+            --region $AWS_REGION
+
+          # Set lifecycle policy to keep only latest 10 images
+          aws ecr put-lifecycle-policy \
+            --repository-name $REPO_NAME \
+            --lifecycle-policy-text '{
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "Keep last 10 images",
+                  "selection": {
+                    "tagStatus": "any",
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                }
+              ]
+            }' \
+            --region $AWS_REGION
+        else
+          echo "ECR repository $REPO_NAME already exists"
+        fi
+
+        # Output repository URL
+        ECR_REPO_URL=$(aws ecr describe-repositories --repository-names $REPO_NAME --query 'repositories[0].repositoryUri' --output text --region $AWS_REGION)
+        echo "ecr_repository_url=$ECR_REPO_URL" >> $GITHUB_OUTPUT
+        echo "ECR Repository URL: $ECR_REPO_URL"
+
+    - name: Get image version from tfvars
+      id: get-version
+      run: |
+        # Extract image_tag from tfvars file
+        IMAGE_TAG=$(grep 'image_tag' infra/terraform/environments/dev.tfvars | cut -d'"' -f2)
+        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "Using image version: $IMAGE_TAG"
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -185,9 +239,11 @@ jobs:
     - name: Build, tag, and push Lambda container image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY_URL: ${{ needs.deploy-infrastructure.outputs.ecr-repository-url }}
-        IMAGE_TAG: ${{ github.sha }}
+        ECR_REPOSITORY_URL: ${{ steps.create-ecr.outputs.ecr_repository_url }}
+        IMAGE_TAG: ${{ steps.get-version.outputs.image_tag }}
       run: |
+        echo "Building Lambda Docker image with semantic version: $IMAGE_TAG"
+
         # Build Lambda Docker image using the Dockerfile in root
         docker build -t $ECR_REPOSITORY_URL:$IMAGE_TAG .
         docker build -t $ECR_REPOSITORY_URL:latest .
@@ -196,24 +252,13 @@ jobs:
         docker push $ECR_REPOSITORY_URL:$IMAGE_TAG
         docker push $ECR_REPOSITORY_URL:latest
 
-    - name: Update Lambda function
-      env:
-        ECR_REPOSITORY_URL: ${{ needs.deploy-infrastructure.outputs.ecr-repository-url }}
-        IMAGE_TAG: ${{ github.sha }}
-        LAMBDA_FUNCTION_NAME: ${{ needs.deploy-infrastructure.outputs.lambda-function-name }}
+        echo "Successfully pushed image with tag: $IMAGE_TAG"
+
+    - name: Update Lambda function via Terraform
       run: |
-        # Update Lambda function with new container image
-        aws lambda update-function-code \
-          --function-name $LAMBDA_FUNCTION_NAME \
-          --image-uri $ECR_REPOSITORY_URL:$IMAGE_TAG \
-          --region $AWS_REGION
-
-        # Wait for update to complete
-        aws lambda wait function-updated-v2 \
-          --function-name $LAMBDA_FUNCTION_NAME \
-          --region $AWS_REGION
-
-        echo "Lambda function updated successfully"
+        cd infra/terraform
+        echo "Terraform will update Lambda function with new image version during terraform apply"
+        # The Lambda function will be updated when terraform apply runs with the new image_tag
 
   # Deploy frontend
   deploy-frontend:

@@ -15,6 +15,17 @@ variable "environment" {
   }
 }
 
+variable "image_tag" {
+  description = "Docker image tag for Lambda function (semantic version: major.minor.patch)"
+  type        = string
+  default     = "0.0.1"
+
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.image_tag))
+    error_message = "Image tag must be a semantic version (e.g., 1.2.3)."
+  }
+}
+
 variable "domain_name" {
   description = "Domain name for the frontend application (optional)"
   type        = string

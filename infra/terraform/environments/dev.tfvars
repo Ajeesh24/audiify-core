@@ -2,6 +2,9 @@
 aws_region  = "ap-southeast-2"
 environment = "dev"
 
+# Docker image version (semantic versioning)
+image_tag = "0.0.1"
+
 # Domain configuration (leave empty for default domains)
 domain_name     = ""  # CloudFront default domain
 api_domain_name = ""  # API Gateway default domain

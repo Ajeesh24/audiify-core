@@ -2,6 +2,9 @@
 aws_region  = "ap-southeast-2"
 environment = "prod"
 
+# Docker image version (semantic versioning)
+image_tag = "0.0.1"
+
 # Domain configuration (configure with your production domain)
 domain_name     = ""  # e.g., "audifyy.com"
 api_domain_name = ""  # e.g., "api.audifyy.com"
