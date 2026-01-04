@@ -44,7 +44,7 @@ RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers (optimized for Lambda)
-RUN playwright install chromium --with-deps
+RUN python -m playwright install chromium --with-deps
 
 # Copy application code
 COPY backend/ ${LAMBDA_TASK_ROOT}/
