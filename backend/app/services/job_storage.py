@@ -88,6 +88,9 @@ class JobStorage:
                     if key == 'status':
                         attr_name = '#status'
                         expression_names['#status'] = 'status'
+                    elif key == 'result':
+                        attr_name = '#result'
+                        expression_names['#result'] = 'result'
                     else:
                         attr_name = key
 
