@@ -28,9 +28,30 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor for logging
-apiClient.interceptors.request.use((config) => {
+// Global variable to store the auth token getter function
+let getAuthToken: (() => Promise<string | null>) | null = null;
+
+// Function to set the auth token getter
+export const setAuthTokenGetter = (tokenGetter: () => Promise<string | null>) => {
+  getAuthToken = tokenGetter;
+};
+
+// Request interceptor for logging and authentication
+apiClient.interceptors.request.use(async (config) => {
   console.log(`Making API request: ${config.method?.toUpperCase()} ${config.url}`);
+
+  // Add authentication header if token is available
+  if (getAuthToken) {
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.warn('Failed to get auth token:', error);
+    }
+  }
+
   return config;
 });
 
@@ -38,6 +59,14 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      // Handle unauthorized - could redirect to login
+      console.warn('Authentication required or token expired');
+      throw new Error('Authentication required. Please sign in.');
+    }
+    if (error.response?.status === 403) {
+      throw new Error('Access denied. You do not have permission to access this resource.');
+    }
     if (error.response?.status === 429) {
       throw new Error('Rate limit exceeded. Please try again later.');
     }
@@ -99,6 +128,30 @@ export interface JobStatusResponse {
   updated_at?: string;
 }
 
+export interface MyArticlesResponse {
+  articles: Array<{
+    job_id: string;
+    created_at: string;
+    updated_at: string;
+    url: string;
+    title: string;
+    word_count: number;
+    estimated_reading_time: number;
+    mode: 'full' | 'summary';
+    audio: {
+      audio_id: string;
+      size: number;
+      storage: 's3' | 'local';
+    } | null;
+  }>;
+  pagination: {
+    limit: number;
+    last_key: string | null;
+    has_more: boolean;
+    total_returned: number;
+  };
+}
+
 // API Functions
 export const audifyApi = {
   // Health check
@@ -113,13 +166,13 @@ export const audifyApi = {
     return response.data;
   },
 
-  // Start async article processing
+  // Start async article processing (requires authentication)
   async startProcessing(request: ArticleProcessRequest): Promise<JobStartResponse> {
     const response = await apiClient.post('/process-article', request);
     return response.data;
   },
 
-  // Get job status
+  // Get job status (requires authentication)
   async getJobStatus(jobId: string): Promise<JobStatusResponse> {
     const response = await apiClient.get(`/job-status/${jobId}`);
     return response.data;
@@ -175,7 +228,19 @@ export const audifyApi = {
     throw new Error('Processing completed but no result available');
   },
 
-  // Get audio stream URL (now handles S3 URLs)
+  // Get user's articles (requires authentication)
+  async getMyArticles(lastKey?: string | null, limit: number = 20): Promise<MyArticlesResponse> {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (lastKey) {
+      params.append('last_key', lastKey);
+    }
+
+    const response = await apiClient.get(`/my-articles?${params.toString()}`);
+    return response.data;
+  },
+
+  // Get audio stream URL (requires authentication)
   getAudioStreamUrl(audioId: string): string {
     return `${API_BASE_URL}/audio/${audioId}`;
   },
