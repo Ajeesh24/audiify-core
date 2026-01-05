@@ -1,7 +1,24 @@
 import axios from 'axios';
 
 // API client configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Priority: Runtime config (env.js) > Build-time config > Development fallback
+const getRuntimeApiUrl = () => {
+  // Check if runtime environment config is available (from env.js)
+  if (typeof window !== 'undefined' && (window as any).ENV?.VITE_API_URL) {
+    return (window as any).ENV.VITE_API_URL;
+  }
+  // Fall back to build-time environment variable
+  return import.meta.env.VITE_API_URL;
+};
+
+const API_BASE_URL = getRuntimeApiUrl() || 'http://localhost:8000/api';
+
+// Debug: Log the API URL being used
+console.log('API Configuration:', {
+  runtimeUrl: (window as any).ENV?.VITE_API_URL,
+  buildTimeUrl: import.meta.env.VITE_API_URL,
+  finalApiUrl: API_BASE_URL
+});
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
