@@ -259,7 +259,7 @@ resource "aws_api_gateway_stage" "backend_stage" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   stage_name    = var.environment
 
-  # Enable access logging
+  # Enable access logging with proper CloudWatch role
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
     format = jsonencode({
@@ -277,7 +277,41 @@ resource "aws_api_gateway_stage" "backend_stage" {
   # Enable X-Ray tracing
   xray_tracing_enabled = true
 
+  # Ensure the account-wide role is configured first
+  depends_on = [aws_api_gateway_account.main]
+
   tags = local.common_tags
+}
+
+# IAM role for API Gateway CloudWatch logging
+resource "aws_iam_role" "api_gateway_cloudwatch_role" {
+  name = "${local.project_name}-api-gateway-cloudwatch-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "apigateway.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# Attach policy for CloudWatch logging
+resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch_logs" {
+  role       = aws_iam_role.api_gateway_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+# Configure API Gateway account-wide CloudWatch role
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch_role.arn
 }
 
 # CloudWatch Log Group for API Gateway
