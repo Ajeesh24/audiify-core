@@ -85,3 +85,44 @@ variable "cors_origins" {
   type        = list(string)
   default     = ["*"]
 }
+
+# Social Authentication Variables
+variable "google_client_id" {
+  description = "Google OAuth Client ID for social login (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Client Secret for social login (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "apple_client_id" {
+  description = "Apple Sign In Client ID (Service ID) for social login (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "apple_team_id" {
+  description = "Apple Developer Team ID for Sign in with Apple (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "apple_key_id" {
+  description = "Apple Sign In Key ID for private key authentication (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "apple_private_key" {
+  description = "Apple Sign In Private Key (ES256) for authentication (optional)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

@@ -94,6 +94,27 @@ output "logs_bucket_name" {
   value       = var.enable_cloudfront_logs ? aws_s3_bucket.logs[0].bucket : null
 }
 
+# Authentication outputs
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = aws_cognito_user_pool.main.id
+}
+
+output "cognito_client_id" {
+  description = "Cognito User Pool Client ID"
+  value       = aws_cognito_user_pool_client.main.id
+}
+
+output "cognito_identity_pool_id" {
+  description = "Cognito Identity Pool ID"
+  value       = aws_cognito_identity_pool.main.id
+}
+
+output "cognito_region" {
+  description = "AWS region for Cognito"
+  value       = data.aws_region.current.name
+}
+
 # Summary output for easy reference
 output "deployment_summary" {
   description = "Summary of deployed resources"
@@ -102,5 +123,11 @@ output "deployment_summary" {
     backend_api_url = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
     environment     = var.environment
     region          = data.aws_region.current.name
+    cognito = {
+      user_pool_id     = aws_cognito_user_pool.main.id
+      client_id        = aws_cognito_user_pool_client.main.id
+      identity_pool_id = aws_cognito_identity_pool.main.id
+      region           = data.aws_region.current.name
+    }
   }
 }

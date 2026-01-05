@@ -3,7 +3,8 @@ from typing import Optional
 import asyncio
 import logging
 import uuid
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+import os
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.responses import JSONResponse
 
@@ -23,6 +24,7 @@ from app.services.llm_service import LLMService
 from app.services.tts_service import TTSService
 from app.services.job_storage import JobStorage
 from app.core.config import get_settings
+from app.auth.dependencies import get_current_user, get_user_id, get_current_user_optional
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,7 +36,7 @@ llm_service = LLMService()
 tts_service = TTSService()
 job_storage = JobStorage()  # DynamoDB-based job storage
 
-async def process_article_background(job_id: str, request: ArticleProcessRequest, job_storage: JobStorage):
+async def process_article_background(job_id: str, request: ArticleProcessRequest, user_id: str, job_storage: JobStorage):
     """Background task to process article asynchronously."""
     try:
         job_storage.update_job_status(job_id, "processing", 10, "Validating URL...")
@@ -98,7 +100,7 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
 
         # Step 5: Generate audio
         try:
-            audio_url, audio_metadata = await tts_service.generate_audio(final_text)
+            audio_url, audio_metadata = await tts_service.generate_audio(final_text, user_id)
         except Exception as e:
             logger.error(f"TTS generation failed: {str(e)}")
             job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
@@ -179,24 +181,28 @@ async def validate_url(request: dict):
 
 
 @router.post("/process-article", response_model=JobStartResponse)
-async def process_article(request: ArticleProcessRequest):
+async def process_article(
+    request: ArticleProcessRequest,
+    user_id: str = Depends(get_user_id)
+):
     """
     Start processing an article URL asynchronously.
     Returns a job_id immediately for status tracking.
+    Requires authentication.
     """
     try:
         # Generate unique job ID
         job_id = str(uuid.uuid4())
 
-        # Create job in DynamoDB and send to SQS
+        # Create job in DynamoDB and send to SQS with user_id
         request_data = {
             "url": str(request.url),
             "mode": request.mode
         }
 
-        job_storage.create_job(job_id, request_data)
+        job_storage.create_job(job_id, request_data, user_id)
 
-        logger.info(f"Started async processing for job {job_id}: {request.url} (mode: {request.mode})")
+        logger.info(f"Started async processing for job {job_id} (user {user_id}): {request.url} (mode: {request.mode})")
 
         return JobStartResponse(
             job_id=job_id,
@@ -210,12 +216,15 @@ async def process_article(request: ArticleProcessRequest):
 
 
 @router.get("/job-status/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
-    """Get the current status of a processing job."""
-    job_data = job_storage.get_job(job_id)
+async def get_job_status(
+    job_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """Get the current status of a processing job. Requires authentication."""
+    job_data = job_storage.get_job(job_id, user_id)
 
     if not job_data:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=404, detail="Job not found or access denied")
 
     return JobStatusResponse(
         job_id=job_data["job_id"],
@@ -230,14 +239,17 @@ async def get_job_status(job_id: str):
 
 
 @router.get("/audio/{audio_id}")
-async def stream_audio(audio_id: str):
-    """Stream audio file by ID (supports both S3 and local storage)."""
+async def stream_audio(
+    audio_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """Stream audio file by ID. Requires authentication and verifies user access."""
     try:
-        # Use TTS service to get the audio URL (handles S3 and local)
-        audio_url = tts_service.get_audio_url(audio_id)
+        # Use TTS service to get the audio URL with user verification
+        audio_url = tts_service.get_audio_url(audio_id, user_id)
 
         if not audio_url:
-            raise HTTPException(status_code=404, detail="Audio file not found")
+            raise HTTPException(status_code=404, detail="Audio file not found or access denied")
 
         # If it's an S3 presigned URL, redirect to it
         if audio_url.startswith('http'):
@@ -268,8 +280,60 @@ async def stream_audio(audio_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error streaming audio {audio_id}: {str(e)}")
+        logger.error(f"Error streaming audio {audio_id} for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to stream audio")
+
+
+@router.get("/my-articles")
+async def get_my_articles(
+    user_id: str = Depends(get_user_id),
+    limit: int = 20,
+    last_key: Optional[str] = None
+):
+    """
+    Get all articles processed by the current user.
+    Returns paginated results ordered by creation date (newest first).
+    Requires authentication.
+    """
+    try:
+        # Get user's jobs with pagination
+        user_jobs_result = job_storage.get_user_jobs(user_id, limit, last_key)
+
+        articles = []
+        for job in user_jobs_result['jobs']:
+            # Only include completed jobs with results
+            if job.get('status') == 'completed' and job.get('result'):
+                result = job['result']
+                article_data = {
+                    'job_id': job['job_id'],
+                    'created_at': job['created_at'],
+                    'updated_at': job['updated_at'],
+                    'url': result.get('article', {}).get('url'),
+                    'title': result.get('article', {}).get('title'),
+                    'word_count': result.get('article', {}).get('word_count', 0),
+                    'estimated_reading_time': result.get('article', {}).get('estimated_reading_time', 0),
+                    'mode': 'summary' if result.get('article', {}).get('summary') else 'full',
+                    'audio': {
+                        'audio_id': result.get('audio', {}).get('audio_id'),
+                        'size': result.get('audio', {}).get('size'),
+                        'storage': result.get('audio', {}).get('storage'),
+                    } if result.get('audio') else None
+                }
+                articles.append(article_data)
+
+        return {
+            'articles': articles,
+            'pagination': {
+                'limit': limit,
+                'last_key': user_jobs_result.get('last_evaluated_key'),
+                'has_more': bool(user_jobs_result.get('last_evaluated_key')),
+                'total_returned': len(articles)
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get articles for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve articles")
 
 
 @router.get("/voices")

@@ -146,6 +146,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "audio_storage" {
   }
 }
 
+# Data sources
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 # Reference existing ECR repository (managed by GitHub workflow)
 data "aws_ecr_repository" "lambda_backend" {
   name = "audifyy-lambda-backend"
@@ -172,6 +176,9 @@ resource "aws_lambda_function" "backend" {
       OPENAI_API_KEY_PARAMETER = aws_ssm_parameter.openai_api_key.name
       SQS_QUEUE_URL            = aws_sqs_queue.job_queue.url
       DYNAMODB_TABLE_NAME      = aws_dynamodb_table.job_status.name
+      COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
+      COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
+      COGNITO_REGION           = data.aws_region.current.name
     }
   }
 
@@ -415,7 +422,228 @@ resource "aws_sqs_queue" "job_queue" {
   tags = local.common_tags
 }
 
-# DynamoDB table for job status storage
+# Cognito User Pool
+resource "aws_cognito_user_pool" "main" {
+  name = "${local.project_name}-users-${var.environment}"
+
+  # User attributes
+  alias_attributes         = ["email"]
+  auto_verified_attributes = ["email"]
+
+  # Password policy
+  password_policy {
+    minimum_length                   = 8
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
+    temporary_password_validity_days = 7
+  }
+
+  # Account recovery
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+  }
+
+  # Email configuration
+  email_configuration {
+    email_sending_account = "COGNITO_DEFAULT"
+  }
+
+  # User verification
+  verification_message_template {
+    default_email_option = "CONFIRM_WITH_CODE"
+    email_message        = "Your Audifyy verification code is {####}"
+    email_subject        = "Verify your Audifyy account"
+  }
+
+  # User pool add-ons
+  user_pool_add_ons {
+    advanced_security_mode = "ENFORCED"
+  }
+
+  tags = local.common_tags
+}
+
+# Google Identity Provider (only if credentials provided)
+resource "aws_cognito_identity_provider" "google" {
+  count         = var.google_client_id != "" && var.google_client_secret != "" ? 1 : 0
+  user_pool_id  = aws_cognito_user_pool.main.id
+  provider_name = "Google"
+  provider_type = "Google"
+
+  provider_details = {
+    authorize_scopes = "email openid profile"
+    client_id        = var.google_client_id
+    client_secret    = var.google_client_secret
+  }
+
+  attribute_mapping = {
+    email    = "email"
+    name     = "name"
+    username = "sub"
+  }
+}
+
+# Apple Identity Provider (only if credentials provided)
+resource "aws_cognito_identity_provider" "apple" {
+  count         = var.apple_client_id != "" && var.apple_team_id != "" && var.apple_key_id != "" && var.apple_private_key != "" ? 1 : 0
+  user_pool_id  = aws_cognito_user_pool.main.id
+  provider_name = "SignInWithApple"
+  provider_type = "SignInWithApple"
+
+  provider_details = {
+    authorize_scopes = "email name"
+    client_id        = var.apple_client_id
+    team_id          = var.apple_team_id
+    key_id           = var.apple_key_id
+    private_key      = var.apple_private_key
+  }
+
+  attribute_mapping = {
+    email    = "email"
+    name     = "name"
+    username = "sub"
+  }
+}
+
+# Helper locals for dynamic identity providers
+locals {
+  identity_providers = concat(
+    ["COGNITO"],
+    var.google_client_id != "" && var.google_client_secret != "" ? ["Google"] : [],
+    var.apple_client_id != "" && var.apple_team_id != "" && var.apple_key_id != "" && var.apple_private_key != "" ? ["SignInWithApple"] : []
+  )
+}
+
+# Cognito User Pool Client
+resource "aws_cognito_user_pool_client" "main" {
+  name         = "${local.project_name}-client-${var.environment}"
+  user_pool_id = aws_cognito_user_pool.main.id
+
+  # Authentication flows
+  explicit_auth_flows = [
+    "ADMIN_NO_SRP_AUTH",
+    "USER_PASSWORD_AUTH",
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH"
+  ]
+
+  # Token validity
+  access_token_validity  = 60   # 1 hour
+  refresh_token_validity = 30   # 30 days
+  id_token_validity      = 60   # 1 hour
+
+  # Prevent user existence errors
+  prevent_user_existence_errors = "ENABLED"
+
+  # No client secret for public frontend clients
+  generate_secret = false
+
+  # Allowed OAuth flows for web app
+  allowed_oauth_flows                  = ["code", "implicit"]
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_scopes                 = ["phone", "email", "openid", "profile", "aws.cognito.signin.user.admin"]
+
+  # Callback URLs for local and production
+  callback_urls = [
+    "http://localhost:3000",
+    "https://audifyy.com",
+    "https://www.audifyy.com"
+  ]
+
+  logout_urls = [
+    "http://localhost:3000",
+    "https://audifyy.com",
+    "https://www.audifyy.com"
+  ]
+
+  # Dynamic identity providers based on what's configured
+  supported_identity_providers = local.identity_providers
+
+  # Ensure identity providers are created first (if they exist)
+  depends_on = [
+    aws_cognito_identity_provider.google,
+    aws_cognito_identity_provider.apple
+  ]
+}
+
+# Cognito Identity Pool
+resource "aws_cognito_identity_pool" "main" {
+  identity_pool_name      = "${local.project_name}_identity_pool_${var.environment}"
+  allow_unauthenticated_identities = false
+
+  cognito_identity_providers {
+    client_id               = aws_cognito_user_pool_client.main.id
+    provider_name           = aws_cognito_user_pool.main.endpoint
+    server_side_token_check = false
+  }
+
+  tags = local.common_tags
+}
+
+# IAM role for authenticated users
+resource "aws_iam_role" "authenticated" {
+  name = "${local.project_name}-cognito-authenticated-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "cognito-identity.amazonaws.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.main.id
+          }
+          "ForAnyValue:StringLike" = {
+            "cognito-identity.amazonaws.com:amr" = "authenticated"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+# IAM policy for authenticated users (minimal S3 access to their own files)
+resource "aws_iam_role_policy" "authenticated" {
+  name = "${local.project_name}-cognito-authenticated-policy-${var.environment}"
+  role = aws_iam_role.authenticated.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.audio_storage.arn}/audio/user-$${cognito-identity.amazonaws.com:sub}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Cognito Identity Pool Role Attachment
+resource "aws_cognito_identity_pool_roles_attachment" "main" {
+  identity_pool_id = aws_cognito_identity_pool.main.id
+
+  roles = {
+    "authenticated" = aws_iam_role.authenticated.arn
+  }
+}
+
+# DynamoDB table for job status storage (updated with user_id)
 resource "aws_dynamodb_table" "job_status" {
   name           = "${local.project_name}-jobs-${var.environment}"
   billing_mode   = "PAY_PER_REQUEST"
@@ -423,6 +651,11 @@ resource "aws_dynamodb_table" "job_status" {
 
   attribute {
     name = "job_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_id"
     type = "S"
   }
 
@@ -440,6 +673,14 @@ resource "aws_dynamodb_table" "job_status" {
   global_secondary_index {
     name               = "status-created-index"
     hash_key           = "status"
+    range_key          = "created_at"
+    projection_type    = "ALL"
+  }
+
+  # Global secondary index for user-specific queries
+  global_secondary_index {
+    name               = "user-created-index"
+    hash_key           = "user_id"
     range_key          = "created_at"
     projection_type    = "ALL"
   }

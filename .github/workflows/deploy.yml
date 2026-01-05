@@ -1,5 +1,18 @@
 name: Deploy to AWS
 
+# Required GitHub Secrets:
+# - OPENAI_API_KEY: OpenAI API key for TTS and LLM services
+# - AWS_GITHUB_TRUST_ROLE: AWS IAM role for GitHub Actions authentication
+# - AWS_DEPLOYMENT_ROLE: AWS IAM role for deployment permissions
+#
+# Optional GitHub Secrets for Social Login (leave empty to disable):
+# - GOOGLE_CLIENT_ID: Google OAuth Client ID
+# - GOOGLE_CLIENT_SECRET: Google OAuth Client Secret
+# - APPLE_CLIENT_ID: Apple Sign In Client ID (Service ID)
+# - APPLE_TEAM_ID: Apple Developer Team ID
+# - APPLE_KEY_ID: Apple Sign In Key ID
+# - APPLE_PRIVATE_KEY: Apple Sign In Private Key (ES256)
+
 on:
   push:
     branches: [main]
@@ -69,6 +82,10 @@ jobs:
       frontend-bucket: ${{ steps.tf-output.outputs.frontend_bucket }}
       cloudfront-distribution-id: ${{ steps.tf-output.outputs.cloudfront_distribution_id }}
       cloudfront-domain: ${{ steps.tf-output.outputs.cloudfront_domain }}
+      cognito-user-pool-id: ${{ steps.tf-output.outputs.cognito_user_pool_id }}
+      cognito-client-id: ${{ steps.tf-output.outputs.cognito_client_id }}
+      cognito-identity-pool-id: ${{ steps.tf-output.outputs.cognito_identity_pool_id }}
+      cognito-region: ${{ steps.tf-output.outputs.cognito_region }}
 
     steps:
     - name: Checkout code
@@ -131,10 +148,39 @@ jobs:
       run: |
         cd infra/terraform
         terraform init
-        terraform plan \
-          -var="openai_api_key=${{ secrets.OPENAI_API_KEY }}" \
-          -var-file="environments/dev.tfvars" \
-          -out=tfplan
+
+        # Build terraform plan with required variables
+        TERRAFORM_VARS="-var=openai_api_key=${{ secrets.OPENAI_API_KEY }}"
+
+        # Add optional social login variables if secrets are available
+        if [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}"
+        fi
+
+        if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+        fi
+
+        if [ -n "${{ secrets.APPLE_CLIENT_ID }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_client_id=${{ secrets.APPLE_CLIENT_ID }}"
+        fi
+
+        if [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_team_id=${{ secrets.APPLE_TEAM_ID }}"
+        fi
+
+        if [ -n "${{ secrets.APPLE_KEY_ID }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_key_id=${{ secrets.APPLE_KEY_ID }}"
+        fi
+
+        if [ -n "${{ secrets.APPLE_PRIVATE_KEY }}" ]; then
+          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_private_key=${{ secrets.APPLE_PRIVATE_KEY }}"
+        fi
+
+        echo "🔧 Planning Terraform deployment with authentication configuration..."
+        terraform plan $TERRAFORM_VARS -var-file="environments/dev.tfvars" -out=tfplan
+
+        echo "🚀 Applying Terraform deployment..."
         terraform apply tfplan
 
     - name: Get Terraform outputs
@@ -145,6 +191,10 @@ jobs:
         echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
         echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
         echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
+        echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
+        echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
+        echo "cognito_identity_pool_id=$(terraform output -raw cognito_identity_pool_id)" >> $GITHUB_OUTPUT
+        echo "cognito_region=$(terraform output -raw cognito_region)" >> $GITHUB_OUTPUT
 
   # Deploy frontend with correct backend URL
   deploy-frontend:
@@ -176,11 +226,31 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
         role-chaining: true
 
-    - name: Update frontend config with real backend URL
+    - name: Update frontend config with runtime environment
       run: |
         BACKEND_URL="${{ needs.deploy.outputs.backend-url }}/api"
-        echo "window.ENV = { VITE_API_URL: '$BACKEND_URL' };" > frontend/dist/env.js
-        echo "Updated env.js with API URL: $BACKEND_URL"
+        COGNITO_USER_POOL_ID="${{ needs.deploy.outputs.cognito-user-pool-id }}"
+        COGNITO_CLIENT_ID="${{ needs.deploy.outputs.cognito-client-id }}"
+        COGNITO_IDENTITY_POOL_ID="${{ needs.deploy.outputs.cognito-identity-pool-id }}"
+        COGNITO_REGION="${{ needs.deploy.outputs.cognito-region }}"
+
+        # Create runtime environment configuration
+        cat > frontend/dist/env.js << EOF
+        window.ENV = {
+          VITE_API_URL: '$BACKEND_URL',
+          VITE_COGNITO_USER_POOL_ID: '$COGNITO_USER_POOL_ID',
+          VITE_COGNITO_CLIENT_ID: '$COGNITO_CLIENT_ID',
+          VITE_COGNITO_IDENTITY_POOL_ID: '$COGNITO_IDENTITY_POOL_ID',
+          VITE_COGNITO_REGION: '$COGNITO_REGION'
+        };
+        EOF
+
+        echo "✅ Updated env.js with runtime configuration:"
+        echo "  API URL: $BACKEND_URL"
+        echo "  Cognito User Pool: $COGNITO_USER_POOL_ID"
+        echo "  Cognito Client: $COGNITO_CLIENT_ID"
+        echo "  Cognito Identity Pool: $COGNITO_IDENTITY_POOL_ID"
+        echo "  Cognito Region: $COGNITO_REGION"
 
     - name: Deploy to S3 and invalidate CloudFront
       run: |
@@ -238,3 +308,17 @@ jobs:
         echo "Backend API: ${{ needs.deploy.outputs.backend-url }}"
         echo "S3 Bucket: ${{ needs.deploy.outputs.frontend-bucket }}"
         echo "CloudFront Distribution: ${{ needs.deploy.outputs.cloudfront-distribution-id }}"
+        echo ""
+        echo "🔐 **Authentication Configuration:**"
+        echo "Cognito User Pool: ${{ needs.deploy.outputs.cognito-user-pool-id }}"
+        echo "Cognito Client: ${{ needs.deploy.outputs.cognito-client-id }}"
+        echo "Cognito Identity Pool: ${{ needs.deploy.outputs.cognito-identity-pool-id }}"
+        echo "Region: ${{ needs.deploy.outputs.cognito-region }}"
+        echo ""
+        echo "🎉 **Authentication Features:**"
+        echo "✅ User registration and login"
+        echo "✅ Email verification"
+        echo "✅ Secure JWT authentication"
+        echo "✅ User-isolated data storage"
+        echo "✅ Personal article history dashboard"
+        echo "✅ Social login support (if configured)"

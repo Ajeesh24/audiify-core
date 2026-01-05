@@ -43,6 +43,7 @@ class TTSService:
     async def generate_audio(
         self,
         text: str,
+        user_id: str,
         voice: str = "alloy",
         model: str = "tts-1",
         speed: float = 1.0,
@@ -53,6 +54,7 @@ class TTSService:
 
         Args:
             text: Text to convert to speech
+            user_id: User ID for file organization and access control
             voice: Voice to use (alloy, echo, fable, onyx, nova, shimmer)
             model: TTS model (tts-1 or tts-1-hd)
             speed: Speech speed (0.25 to 4.0)
@@ -67,8 +69,8 @@ class TTSService:
             audio_id = f"audio_{content_hash[:16]}"
             audio_filename = f"{audio_id}.{format}"
 
-            # S3 key for the audio file
-            s3_key = f"audio/{audio_filename}"
+            # S3 key with user-specific path for isolation: audio/user-{user_id}/filename
+            s3_key = f"audio/user-{user_id}/{audio_filename}"
 
             # Check if we already have this audio cached in S3
             if self.bucket_name:
@@ -205,21 +207,22 @@ class TTSService:
             logger.error(f"Error generating audio: {str(e)}")
             raise Exception(f"Failed to generate audio: {str(e)}")
 
-    def get_audio_url(self, audio_id: str, expires_in: int = 3600) -> Optional[str]:
+    def get_audio_url(self, audio_id: str, user_id: str, expires_in: int = 3600) -> Optional[str]:
         """
         Get a URL to access the audio file (S3 presigned URL or local path).
 
         Args:
             audio_id: Audio identifier
+            user_id: User ID for path construction and access verification
             expires_in: URL expiration time in seconds (for S3 presigned URLs)
 
         Returns:
             Audio access URL or None if not found
         """
         try:
-            # Try S3 first
+            # Try S3 first with user-specific path
             if self.bucket_name:
-                s3_key = f"audio/{audio_id}.mp3"  # Default to mp3, could be improved
+                s3_key = f"audio/user-{user_id}/{audio_id}.mp3"  # Default to mp3, could be improved
 
                 try:
                     # Check if file exists in S3
@@ -232,16 +235,16 @@ class TTSService:
                         ExpiresIn=expires_in
                     )
 
-                    logger.info(f"Generated presigned URL for {audio_id}")
+                    logger.info(f"Generated presigned URL for {audio_id} (user {user_id})")
                     return presigned_url
 
                 except ClientError as e:
                     if e.response['Error']['Code'] == '404':
-                        logger.info(f"Audio {audio_id} not found in S3, checking local storage")
+                        logger.info(f"Audio {audio_id} not found in S3 for user {user_id}, checking local storage")
                     else:
                         logger.warning(f"S3 error getting URL for {audio_id}: {str(e)}")
 
-            # Fallback to local file check
+            # Fallback to local file check (less secure, for development)
             audio_files = [f for f in os.listdir(self.temp_dir) if f.startswith(audio_id)]
             if audio_files:
                 local_path = os.path.join(self.temp_dir, audio_files[0])
@@ -251,7 +254,7 @@ class TTSService:
             return None
 
         except Exception as e:
-            logger.error(f"Error getting audio URL for {audio_id}: {str(e)}")
+            logger.error(f"Error getting audio URL for {audio_id} (user {user_id}): {str(e)}")
             return None
 
     def _split_text(self, text: str, max_length: int = 4000) -> list[str]:

@@ -26,7 +26,7 @@ class JobStorage:
         if not self.queue_url:
             raise ValueError("SQS_QUEUE_URL environment variable not set")
 
-    def create_job(self, job_id: str, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_job(self, job_id: str, request_data: Dict[str, Any], user_id: str) -> Dict[str, Any]:
         """Create a new job and send to SQS for background processing."""
         try:
             # Calculate TTL (jobs expire after 7 days)
@@ -34,6 +34,7 @@ class JobStorage:
 
             job_data = {
                 'job_id': job_id,
+                'user_id': user_id,  # Associate job with user
                 'status': 'started',
                 'progress': 0,
                 'step': 'Queued for processing...',
@@ -50,6 +51,7 @@ class JobStorage:
             # Send job to SQS for background processing
             message_body = {
                 'job_id': job_id,
+                'user_id': user_id,  # Include user_id in SQS message
                 'request_data': request_data
             }
 
@@ -58,20 +60,70 @@ class JobStorage:
                 MessageBody=json.dumps(message_body)
             )
 
-            logger.info(f"Created job {job_id} and queued for processing")
+            logger.info(f"Created job {job_id} for user {user_id} and queued for processing")
             return job_data
 
         except Exception as e:
             logger.error(f"Failed to create job {job_id}: {str(e)}")
             raise
 
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get job status from DynamoDB."""
+    def get_job(self, job_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get job status from DynamoDB with optional user verification."""
         try:
             response = self.table.get_item(Key={'job_id': job_id})
-            return response.get('Item')
+            job_data = response.get('Item')
+
+            # If user_id is provided, verify the job belongs to this user
+            if job_data and user_id and job_data.get('user_id') != user_id:
+                logger.warning(f"User {user_id} attempted to access job {job_id} belonging to {job_data.get('user_id')}")
+                return None
+
+            return job_data
         except Exception as e:
             logger.error(f"Failed to get job {job_id}: {str(e)}")
+            return None
+
+    def get_user_jobs(self, user_id: str, limit: int = 50, last_evaluated_key: Optional[str] = None) -> Dict[str, Any]:
+        """Get all jobs for a specific user, ordered by creation date (newest first)."""
+        try:
+            query_kwargs = {
+                'IndexName': 'user-created-index',
+                'KeyConditionExpression': '#user_id = :user_id',
+                'ExpressionAttributeNames': {'#user_id': 'user_id'},
+                'ExpressionAttributeValues': {':user_id': user_id},
+                'Limit': limit,
+                'ScanIndexForward': False  # Most recent first
+            }
+
+            # Handle pagination
+            if last_evaluated_key:
+                query_kwargs['ExclusiveStartKey'] = {'user_id': user_id, 'created_at': last_evaluated_key}
+
+            response = self.table.query(**query_kwargs)
+
+            return {
+                'jobs': response.get('Items', []),
+                'last_evaluated_key': response.get('LastEvaluatedKey', {}).get('created_at'),
+                'count': response.get('Count', 0)
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get jobs for user {user_id}: {str(e)}")
+            return {'jobs': [], 'last_evaluated_key': None, 'count': 0}
+
+    def get_user_job_by_url(self, user_id: str, url: str) -> Optional[Dict[str, Any]]:
+        """Check if user has already processed a specific URL."""
+        try:
+            # Get all user jobs and filter by URL (could be optimized with GSI if needed)
+            user_jobs = self.get_user_jobs(user_id, limit=100)
+
+            for job in user_jobs['jobs']:
+                if job.get('result', {}).get('article', {}).get('url') == url:
+                    return job
+
+            return None
+        except Exception as e:
+            logger.error(f"Failed to check URL for user {user_id}: {str(e)}")
             return None
 
     def update_job(self, job_id: str, **updates) -> bool:

@@ -233,9 +233,10 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
                             # Parse SQS message
                             message_body = json.loads(record['body'])
                             job_id = message_body['job_id']
+                            user_id = message_body['user_id']  # Extract user_id
                             request_data = message_body['request_data']
 
-                            logger.info(f"Processing background job {job_id}")
+                            logger.info(f"Processing background job {job_id} for user {user_id}")
 
                             # Import here to avoid circular imports
                             from app.services.job_storage import JobStorage
@@ -248,8 +249,8 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
                             # Import background processing function
                             from app.api.routes import process_article_background
 
-                            # Process in background
-                            await process_article_background(job_id, request, job_storage)
+                            # Process in background with user_id
+                            await process_article_background(job_id, request, user_id, job_storage)
 
                         except Exception as e:
                             logger.error(f"Failed to process SQS record: {str(e)}")

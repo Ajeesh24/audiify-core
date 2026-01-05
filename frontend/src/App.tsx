@@ -1,22 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-react';
+import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudioPlayer from '@/components/AudioPlayer';
 import WaveformVisual from '@/components/WaveformVisual';
-import { audifyApi, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse } from '@/services/api';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthForm } from '@/components/AuthForm';
+import { UserDashboard } from '@/components/UserDashboard';
+import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
 
-export default function App() {
+function AuthenticatedApp() {
+  const { user, loading, isAuthenticated, getAccessToken, signOut } = useAuth();
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
+  const [progress, setProgress] = useState(0);
   const [audioData, setAudioData] = useState<AudioResponse | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
+
+  // Set up auth token getter for API requests
+  useEffect(() => {
+    setAuthTokenGetter(getAccessToken);
+  }, [getAccessToken]);
 
   const processArticle = async () => {
     if (!url.trim()) return;
@@ -25,6 +36,7 @@ export default function App() {
     setError(null);
     setAudioData(null);
     setArticleContent(null);
+    setProgress(0);
 
     try {
       // Step 1: Validate URL
@@ -36,15 +48,21 @@ export default function App() {
         return;
       }
 
-      // Step 2: Process article
-      setProcessingStep(mode === 'summary' ? 'Extracting and summarizing article...' : 'Extracting article content...');
+      // Step 2: Process article with progress tracking
+      setProcessingStep('Starting article processing...');
 
       const request: ArticleProcessRequest = {
         url,
         mode,
       };
 
-      const response: ProcessArticleResponse = await audifyApi.processArticle(request);
+      const response: ProcessArticleResponse = await audifyApi.processArticle(
+        request,
+        (status: JobStatusResponse) => {
+          setProgress(status.progress);
+          setProcessingStep(status.step || 'Processing...');
+        }
+      );
 
       if (!response.success) {
         setError(response.error || 'Failed to process article');
@@ -54,7 +72,8 @@ export default function App() {
       if (response.article && response.audio) {
         setArticleContent(response.article);
         setAudioData(response.audio);
-        setProcessingStep('');
+        setProcessingStep('Complete!');
+        setProgress(100);
       } else {
         setError('Incomplete response from server');
       }
@@ -63,7 +82,10 @@ export default function App() {
       console.error('Processing error:', err);
 
       // Handle different types of errors
-      if (err.message?.includes('Rate limit')) {
+      if (err.message?.includes('Authentication required')) {
+        setError('Please sign in to process articles.');
+        // Could trigger sign out here if token is expired
+      } else if (err.message?.includes('Rate limit')) {
         setError('Rate limit exceeded. Please try again in a few minutes.');
       } else if (err.message?.includes('timeout')) {
         setError('Request timeout. The article might be too long to process. Try a shorter article or summary mode.');
@@ -74,7 +96,10 @@ export default function App() {
       }
     } finally {
       setIsProcessing(false);
-      setProcessingStep('');
+      setTimeout(() => {
+        setProcessingStep('');
+        setProgress(0);
+      }, 2000);
     }
   };
 
@@ -84,6 +109,99 @@ export default function App() {
     }
   };
 
+  const handleSignOut = () => {
+    setShowDashboard(false);
+    setUrl('');
+    setAudioData(null);
+    setArticleContent(null);
+    setError(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4">
+        {/* Ambient background effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 w-full max-w-md">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-8"
+          >
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
+                <Headphones className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                Audifyy
+              </h1>
+            </div>
+            <p className="text-slate-400 text-lg">
+              Transform articles into audio with AI
+            </p>
+          </motion.div>
+
+          <AuthForm onSuccess={() => {}} />
+        </div>
+      </div>
+    );
+  }
+
+  if (showDashboard) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 p-4">
+        {/* Ambient background effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 container mx-auto py-8 max-w-6xl">
+          {/* Header with back button */}
+          <div className="flex items-center justify-between mb-8">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-3"
+            >
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl shadow-lg">
+                <Headphones className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                Audifyy
+              </h1>
+            </motion.div>
+
+            <Button
+              onClick={() => setShowDashboard(false)}
+              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border border-slate-600/50"
+            >
+              Convert New Article
+            </Button>
+          </div>
+
+          <UserDashboard onSignOut={handleSignOut} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
       {/* Ambient background effects */}
@@ -92,22 +210,52 @@ export default function App() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-12 max-w-4xl">
-        {/* Header */}
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
+        {/* Header with user info */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="flex items-center justify-between mb-8"
         >
-          <div className="inline-flex items-center gap-3 mb-4">
+          <div className="inline-flex items-center gap-3">
             <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
               <Headphones className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
-              Audifyy
-            </h1>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                Audifyy
+              </h1>
+              <p className="text-slate-400 text-sm">
+                Welcome back, {user?.name || user?.email?.split('@')[0]}!
+              </p>
+            </div>
           </div>
-          <p className="text-slate-400 text-lg max-w-md mx-auto">
+
+          <div className="flex items-center space-x-3">
+            <Button
+              onClick={() => setShowDashboard(true)}
+              variant="outline"
+              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50"
+            >
+              <User className="w-4 h-4 mr-2" />
+              My Articles
+            </Button>
+            <Button
+              onClick={signOut}
+              variant="outline"
+              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50"
+            >
+              Sign Out
+            </Button>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <p className="text-slate-400 text-lg">
             Transform any article into crystal-clear audio. Listen on the go.
           </p>
         </motion.div>
@@ -180,6 +328,24 @@ export default function App() {
                   )}
                 </Button>
 
+                {/* Progress Bar */}
+                {isProcessing && progress > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-slate-400">
+                      <span>Progress</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-2">
+                      <motion.div
+                        className="bg-gradient-to-r from-purple-600 to-violet-600 h-2 rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Error Message */}
                 <AnimatePresence>
                   {error && (
@@ -245,9 +411,17 @@ export default function App() {
           transition={{ delay: 0.3 }}
           className="text-center text-slate-600 text-sm mt-12"
         >
-          Powered by AI • Clean content extraction • Natural voice synthesis
+          Powered by AI • Secure authentication • Natural voice synthesis
         </motion.p>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
   );
 }
