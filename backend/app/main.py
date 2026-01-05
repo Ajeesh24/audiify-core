@@ -69,7 +69,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -183,7 +182,6 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     app_for_lambda.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=True,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
