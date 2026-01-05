@@ -43,15 +43,16 @@ COPY backend/requirements.txt ${LAMBDA_TASK_ROOT}/
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (optimized for Lambda)
-RUN python -m playwright install chromium --with-deps
+# Set Playwright environment variables for runtime browser installation
+ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
 # Copy application code
 COPY backend/ ${LAMBDA_TASK_ROOT}/
 
-# Create temporary directory for audio processing
-RUN mkdir -p /tmp/audifyy && \
-    chmod 755 /tmp/audifyy
+# Create temporary directories for audio processing and Playwright browsers
+RUN mkdir -p /tmp/audifyy /tmp/playwright && \
+    chmod 755 /tmp/audifyy /tmp/playwright
 
 # Set the Lambda handler
 CMD ["app.main.lambda_handler"]
