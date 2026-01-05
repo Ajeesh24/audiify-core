@@ -1,7 +1,8 @@
 import os
-from typing import Optional
+import json
+from typing import Optional, Union
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 def load_openai_key() -> Optional[str]:
@@ -52,20 +53,21 @@ class Settings(BaseSettings):
     max_summary_length: int = Field(default=2000, description="Maximum summary length in characters")
 
     # CORS settings - handle both string and list for Lambda environment
-    cors_origins: list = Field(
+    cors_origins: Union[str, list] = Field(
         default=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "https://audifyy.com"],
         description="Allowed CORS origins"
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Parse CORS origins if it's a JSON string (from Lambda environment)
-        if isinstance(self.cors_origins, str):
+    @field_validator('cors_origins')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from JSON string if needed."""
+        if isinstance(v, str):
             try:
-                import json
-                self.cors_origins = json.loads(self.cors_origins)
-            except:
-                self.cors_origins = [self.cors_origins]
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return [v]
+        return v
 
     class Config:
         env_file = ".env"
