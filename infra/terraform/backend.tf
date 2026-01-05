@@ -146,10 +146,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "audio_storage" {
   }
 }
 
-# Data sources
-data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}
-
 # Reference existing ECR repository (managed by GitHub workflow)
 data "aws_ecr_repository" "lambda_backend" {
   name = "audifyy-lambda-backend"
