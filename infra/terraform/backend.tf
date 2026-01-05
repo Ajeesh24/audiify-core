@@ -119,37 +119,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "audio_storage" {
   }
 }
 
-# ECR repository for Lambda container images
-resource "aws_ecr_repository" "lambda_backend" {
-  name         = "${local.project_name}-lambda-backend"
-  force_delete = true
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_ecr_lifecycle_policy" "lambda_backend" {
-  repository = aws_ecr_repository.lambda_backend.name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Keep last 10 images"
-        selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 10
-        }
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
+# Reference existing ECR repository (managed by GitHub workflow)
+data "aws_ecr_repository" "lambda_backend" {
+  name = "audifyy-lambda-backend"
 }
 
 # Lambda function
@@ -159,7 +131,7 @@ resource "aws_lambda_function" "backend" {
   package_type  = "Image"
 
   # Image URI with semantic version tag
-  image_uri = "${aws_ecr_repository.lambda_backend.repository_url}:${var.image_tag}"
+  image_uri = "${data.aws_ecr_repository.lambda_backend.repository_url}:${var.image_tag}"
 
   timeout     = 900  # 15 minutes (maximum for Lambda)
   memory_size = 2048 # 2GB (sufficient for our processing)

@@ -47,7 +47,7 @@ output "lambda_function_arn" {
 
 output "ecr_repository_url" {
   description = "ECR repository URL for Lambda container images"
-  value       = aws_ecr_repository.lambda_backend.repository_url
+  value       = data.aws_ecr_repository.lambda_backend.repository_url
 }
 
 output "backend_api_url" {
