@@ -8,6 +8,7 @@ import aiofiles
 from openai import AsyncOpenAI
 import httpx
 import logging
+import boto3
 
 from app.core.config import get_settings
 
@@ -31,6 +32,12 @@ class TTSService:
             http_client=http_client
         )
         self.temp_dir = tempfile.gettempdir()
+
+        # Initialize S3 client for audio file storage
+        self.s3_client = boto3.client('s3')
+        self.bucket_name = os.environ.get('AUDIO_BUCKET_NAME')
+        if not self.bucket_name:
+            logger.warning("AUDIO_BUCKET_NAME not set - falling back to local storage")
 
     async def generate_audio(
         self,
@@ -58,20 +65,50 @@ class TTSService:
             content_hash = hashlib.md5(f"{text}{voice}{model}{speed}".encode()).hexdigest()
             audio_id = f"audio_{content_hash[:16]}"
             audio_filename = f"{audio_id}.{format}"
-            audio_path = os.path.join(self.temp_dir, audio_filename)
 
-            # Check if we already have this audio cached
-            if os.path.exists(audio_path):
-                logger.info(f"Using cached audio: {audio_id}")
-                metadata = {
-                    "audio_id": audio_id,
-                    "voice": voice,
-                    "model": model,
-                    "speed": speed,
-                    "format": format,
-                    "cached": True
-                }
-                return audio_path, metadata
+            # S3 key for the audio file
+            s3_key = f"audio/{audio_filename}"
+
+            # Check if we already have this audio cached in S3
+            if self.bucket_name:
+                try:
+                    # Check if file exists in S3
+                    self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+                    logger.info(f"Using cached audio from S3: {audio_id}")
+
+                    # Generate S3 URL
+                    s3_url = f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+
+                    metadata = {
+                        "audio_id": audio_id,
+                        "voice": voice,
+                        "model": model,
+                        "speed": speed,
+                        "format": format,
+                        "cached": True,
+                        "s3_key": s3_key,
+                        "s3_url": s3_url,
+                        "storage": "s3"
+                    }
+                    return s3_url, metadata
+                except self.s3_client.exceptions.NoSuchKey:
+                    # File doesn't exist in S3, continue to generate
+                    pass
+            else:
+                # Fallback to local storage check
+                local_path = os.path.join(self.temp_dir, audio_filename)
+                if os.path.exists(local_path):
+                    logger.info(f"Using cached audio locally: {audio_id}")
+                    metadata = {
+                        "audio_id": audio_id,
+                        "voice": voice,
+                        "model": model,
+                        "speed": speed,
+                        "format": format,
+                        "cached": True,
+                        "storage": "local"
+                    }
+                    return local_path, metadata
 
             logger.info(f"Generating new audio with OpenAI TTS: {audio_id}")
 
@@ -92,7 +129,6 @@ class TTSService:
 
                 # Read the audio data
                 audio_data = response.content
-
                 audio_chunks.append(audio_data)
 
             # Combine chunks if multiple
@@ -101,8 +137,47 @@ class TTSService:
             else:
                 final_audio = await self._combine_audio_chunks(audio_chunks, format)
 
-            # Save to file
-            async with aiofiles.open(audio_path, 'wb') as f:
+            # Upload to S3 if bucket is available
+            if self.bucket_name:
+                try:
+                    # Upload directly to S3
+                    self.s3_client.put_object(
+                        Bucket=self.bucket_name,
+                        Key=s3_key,
+                        Body=final_audio,
+                        ContentType=f"audio/{format}",
+                        ContentDisposition=f"inline; filename={audio_filename}"
+                    )
+
+                    # Generate S3 URL
+                    s3_url = f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+
+                    logger.info(f"Audio uploaded to S3: {s3_key} ({len(final_audio)} bytes)")
+
+                    # Calculate metadata
+                    metadata = {
+                        "audio_id": audio_id,
+                        "voice": voice,
+                        "model": model,
+                        "speed": speed,
+                        "format": format,
+                        "size": len(final_audio),
+                        "chunks": len(chunks),
+                        "cached": False,
+                        "s3_key": s3_key,
+                        "s3_url": s3_url,
+                        "storage": "s3"
+                    }
+
+                    return s3_url, metadata
+
+                except Exception as s3_error:
+                    logger.error(f"Failed to upload to S3: {str(s3_error)}, falling back to local storage")
+                    # Continue with local storage fallback
+
+            # Fallback: Save locally (for development or S3 failure)
+            local_path = os.path.join(self.temp_dir, audio_filename)
+            async with aiofiles.open(local_path, 'wb') as f:
                 await f.write(final_audio)
 
             # Calculate metadata
@@ -114,15 +189,63 @@ class TTSService:
                 "format": format,
                 "size": len(final_audio),
                 "chunks": len(chunks),
-                "cached": False
+                "cached": False,
+                "storage": "local"
             }
 
-            logger.info(f"Audio generated successfully: {audio_id} ({len(final_audio)} bytes)")
-            return audio_path, metadata
+            logger.info(f"Audio saved locally: {audio_id} ({len(final_audio)} bytes)")
+            return local_path, metadata
 
         except Exception as e:
             logger.error(f"Error generating audio: {str(e)}")
             raise Exception(f"Failed to generate audio: {str(e)}")
+
+    def get_audio_url(self, audio_id: str, expires_in: int = 3600) -> Optional[str]:
+        """
+        Get a URL to access the audio file (S3 presigned URL or local path).
+
+        Args:
+            audio_id: Audio identifier
+            expires_in: URL expiration time in seconds (for S3 presigned URLs)
+
+        Returns:
+            Audio access URL or None if not found
+        """
+        try:
+            # Try S3 first
+            if self.bucket_name:
+                s3_key = f"audio/{audio_id}.mp3"  # Default to mp3, could be improved
+
+                try:
+                    # Check if file exists in S3
+                    self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+
+                    # Generate presigned URL for secure access
+                    presigned_url = self.s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
+                        ExpiresIn=expires_in
+                    )
+
+                    logger.info(f"Generated presigned URL for {audio_id}")
+                    return presigned_url
+
+                except self.s3_client.exceptions.NoSuchKey:
+                    logger.info(f"Audio {audio_id} not found in S3, checking local storage")
+                    pass
+
+            # Fallback to local file check
+            audio_files = [f for f in os.listdir(self.temp_dir) if f.startswith(audio_id)]
+            if audio_files:
+                local_path = os.path.join(self.temp_dir, audio_files[0])
+                if os.path.exists(local_path):
+                    return local_path
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting audio URL for {audio_id}: {str(e)}")
+            return None
 
     def _split_text(self, text: str, max_length: int = 4000) -> list[str]:
         """

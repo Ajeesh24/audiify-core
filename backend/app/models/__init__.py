@@ -30,6 +30,10 @@ class AudioResponse(BaseModel):
     audio_id: str = Field(..., description="Unique audio identifier")
     duration: Optional[float] = Field(None, description="Audio duration in seconds")
     size: Optional[int] = Field(None, description="Audio file size in bytes")
+    url: Optional[str] = Field(None, description="Audio file URL (S3 presigned or API endpoint)")
+    s3_key: Optional[str] = Field(None, description="S3 object key if stored in S3")
+    storage: Optional[str] = Field(None, description="Storage type: 's3' or 'local'")
+    expires_at: Optional[str] = Field(None, description="URL expiration time (for presigned URLs)")
 
 
 class ProcessArticleResponse(BaseModel):

@@ -98,7 +98,7 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
 
         # Step 5: Generate audio
         try:
-            audio_path, audio_metadata = await tts_service.generate_audio(final_text)
+            audio_url, audio_metadata = await tts_service.generate_audio(final_text)
         except Exception as e:
             logger.error(f"TTS generation failed: {str(e)}")
             job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
@@ -119,10 +119,14 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             estimated_reading_time=reading_time
         )
 
+        # Create audio response with S3 or local URL information
         audio_response = AudioResponse(
             audio_id=audio_metadata["audio_id"],
             duration=None,  # Could calculate with audio analysis
-            size=audio_metadata.get("size")
+            size=audio_metadata.get("size"),
+            url=audio_url,  # S3 URL or local path
+            s3_key=audio_metadata.get("s3_key"),
+            storage=audio_metadata.get("storage", "unknown")
         )
 
         result = ProcessArticleResponse(
@@ -227,42 +231,39 @@ async def get_job_status(job_id: str):
 
 @router.get("/audio/{audio_id}")
 async def stream_audio(audio_id: str):
-    """Stream audio file by ID."""
+    """Stream audio file by ID (supports both S3 and local storage)."""
     try:
-        # Find the audio file
-        import os
-        import tempfile
+        # Use TTS service to get the audio URL (handles S3 and local)
+        audio_url = tts_service.get_audio_url(audio_id)
 
-        temp_dir = tempfile.gettempdir()
-
-        # Clean the audio_id - remove "audio_" prefix if present
-        clean_audio_id = audio_id.replace("audio_", "")
-        audio_files = [f for f in os.listdir(temp_dir) if f.startswith(f"audio_{clean_audio_id}")]
-
-        if not audio_files:
+        if not audio_url:
             raise HTTPException(status_code=404, detail="Audio file not found")
 
-        audio_path = os.path.join(temp_dir, audio_files[0])
+        # If it's an S3 presigned URL, redirect to it
+        if audio_url.startswith('http'):
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=audio_url)
 
-        if not os.path.exists(audio_path):
-            raise HTTPException(status_code=404, detail="Audio file not found")
+        # If it's a local file path, stream it
+        if os.path.exists(audio_url):
+            # Determine content type
+            if audio_url.endswith('.mp3'):
+                media_type = "audio/mpeg"
+            elif audio_url.endswith('.wav'):
+                media_type = "audio/wav"
+            elif audio_url.endswith('.opus'):
+                media_type = "audio/opus"
+            else:
+                media_type = "audio/mpeg"
 
-        # Determine content type
-        if audio_path.endswith('.mp3'):
-            media_type = "audio/mpeg"
-        elif audio_path.endswith('.wav'):
-            media_type = "audio/wav"
-        elif audio_path.endswith('.opus'):
-            media_type = "audio/opus"
+            # Stream the local file
+            return StreamingResponse(
+                tts_service.stream_audio(audio_url),
+                media_type=media_type,
+                headers={"Accept-Ranges": "bytes"}
+            )
         else:
-            media_type = "audio/mpeg"
-
-        # Stream the file
-        return StreamingResponse(
-            tts_service.stream_audio(audio_path),
-            media_type=media_type,
-            headers={"Accept-Ranges": "bytes"}
-        )
+            raise HTTPException(status_code=404, detail="Audio file not found")
 
     except HTTPException:
         raise
