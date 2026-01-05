@@ -528,10 +528,17 @@ resource "aws_cognito_user_pool_client" "main" {
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
-  # Token validity
+  # Token validity (in minutes by default)
   access_token_validity  = 60   # 1 hour
   refresh_token_validity = 30   # 30 days
   id_token_validity      = 60   # 1 hour
+
+  # Specify the units explicitly
+  token_validity_units {
+    access_token  = "minutes"
+    id_token      = "minutes"
+    refresh_token = "days"
+  }
 
   # Prevent user existence errors
   prevent_user_existence_errors = "ENABLED"
