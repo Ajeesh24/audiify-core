@@ -178,8 +178,9 @@ jobs:
 
     - name: Update frontend config with real backend URL
       run: |
-        BACKEND_URL="${{ needs.deploy.outputs.backend-url }}"
+        BACKEND_URL="${{ needs.deploy.outputs.backend-url }}/api"
         echo "window.ENV = { VITE_API_URL: '$BACKEND_URL' };" > frontend/dist/env.js
+        echo "Updated env.js with API URL: $BACKEND_URL"
 
     - name: Deploy to S3 and invalidate CloudFront
       run: |
