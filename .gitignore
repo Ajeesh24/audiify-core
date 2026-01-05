@@ -84,6 +84,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# But include frontend source lib utilities
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
