@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 import asyncio
 import logging
+import uuid
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from fastapi.responses import JSONResponse
@@ -13,7 +14,9 @@ from app.models import (
     AudioResponse,
     ProcessingStatus,
     ErrorResponse,
-    HealthResponse
+    HealthResponse,
+    JobStartResponse,
+    JobStatusResponse
 )
 from app.services.extractor import ArticleExtractor
 from app.services.llm_service import LLMService
@@ -29,8 +32,134 @@ article_extractor = ArticleExtractor()
 llm_service = LLMService()
 tts_service = TTSService()
 
-# In-memory store for processing status (in production, use Redis)
-processing_status = {}
+# In-memory job storage (in production, use Redis/DynamoDB)
+job_store = {}
+
+async def update_job_status(job_id: str, status: str, progress: int = 0, step: str = None, result: ProcessArticleResponse = None, error: str = None):
+    """Update job status in the store."""
+    if job_id in job_store:
+        job_store[job_id].update({
+            "status": status,
+            "progress": progress,
+            "step": step,
+            "result": result,
+            "error": error,
+            "updated_at": datetime.now().isoformat()
+        })
+
+async def process_article_background(job_id: str, request: ArticleProcessRequest):
+    """Background task to process article asynchronously."""
+    try:
+        await update_job_status(job_id, "processing", 10, "Validating URL...")
+
+        # Validate URL first
+        is_valid = await article_extractor.validate_url(str(request.url))
+        if not is_valid:
+            await update_job_status(job_id, "error", 0, error="Invalid or inaccessible URL")
+            return
+
+        await update_job_status(job_id, "processing", 20, "Extracting article content...")
+
+        # Step 1: Extract article content
+        try:
+            title, raw_content, is_paywalled = await article_extractor.extract_article(str(request.url))
+        except Exception as e:
+            logger.error(f"Extraction failed: {str(e)}")
+            await update_job_status(job_id, "error", 0, error=f"Failed to extract article content: {str(e)}")
+            return
+
+        if is_paywalled:
+            await update_job_status(job_id, "error", 0, error="Article appears to be behind a paywall or requires subscription")
+            return
+
+        await update_job_status(job_id, "processing", 30, "Cleaning content...")
+
+        # Step 2: Clean content
+        cleaned_content = article_extractor.clean_content(raw_content)
+
+        if len(cleaned_content.strip()) < 100:
+            await update_job_status(job_id, "error", 0, error="Insufficient article content found after cleaning")
+            return
+
+        await update_job_status(job_id, "processing", 40, "Processing content...")
+
+        # Step 3: Process based on mode
+        final_text = cleaned_content
+        summary = None
+
+        if request.mode == "summary":
+            await update_job_status(job_id, "processing", 50, "Generating summary...")
+            try:
+                summary = await llm_service.summarize_article(title, cleaned_content)
+                final_text = summary
+            except Exception as e:
+                logger.error(f"Summarization failed: {str(e)}")
+                await update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
+                return
+
+        await update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
+
+        # Step 4: Enhance text for audio (optional)
+        try:
+            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
+            final_text = enhanced_text
+        except Exception as e:
+            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
+            # Continue with non-enhanced text
+
+        await update_job_status(job_id, "processing", 80, "Generating audio...")
+
+        # Step 5: Generate audio
+        try:
+            audio_path, audio_metadata = await tts_service.generate_audio(final_text)
+        except Exception as e:
+            logger.error(f"TTS generation failed: {str(e)}")
+            await update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
+            return
+
+        await update_job_status(job_id, "processing", 95, "Finalizing...")
+
+        # Calculate metadata
+        word_count = len(final_text.split())
+        reading_time = article_extractor.calculate_reading_time(final_text)
+
+        # Build response
+        article_content = ArticleContent(
+            title=title,
+            content=cleaned_content,
+            summary=summary if request.mode == "summary" else None,
+            word_count=word_count,
+            estimated_reading_time=reading_time
+        )
+
+        audio_response = AudioResponse(
+            audio_id=audio_metadata["audio_id"],
+            duration=None,  # Could calculate with audio analysis
+            size=audio_metadata.get("size")
+        )
+
+        result = ProcessArticleResponse(
+            success=True,
+            article=article_content,
+            audio=audio_response,
+            error=None
+        )
+
+        await update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
+
+        # Schedule cleanup of old files
+        asyncio.create_task(cleanup_old_files_async())
+
+    except Exception as e:
+        logger.error(f"Unexpected error processing article: {str(e)}")
+        await update_job_status(job_id, "error", 0, error=f"Internal server error: {str(e)}")
+
+async def cleanup_old_files_async():
+    """Async wrapper for cleanup."""
+    try:
+        tts_service.cleanup_old_files(24)
+    except Exception as e:
+        logger.error(f"Cleanup failed: {str(e)}")
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -58,120 +187,62 @@ async def validate_url(request: dict):
         return {"valid": False, "url": url, "error": str(e)}
 
 
-@router.post("/process-article", response_model=ProcessArticleResponse)
-async def process_article(
-    request: ArticleProcessRequest,
-    background_tasks: BackgroundTasks
-):
+@router.post("/process-article", response_model=JobStartResponse)
+async def process_article(request: ArticleProcessRequest):
     """
-    Process an article URL and generate audio.
-    This is the main endpoint that orchestrates the entire pipeline.
+    Start processing an article URL asynchronously.
+    Returns a job_id immediately for status tracking.
     """
     try:
-        # Validate URL first
-        is_valid = await article_extractor.validate_url(str(request.url))
-        if not is_valid:
-            return ProcessArticleResponse(
-                success=False,
-                error="Invalid or inaccessible URL"
-            )
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
 
-        # Start processing
-        logger.info(f"Processing article: {request.url} (mode: {request.mode})")
+        # Initialize job in store
+        job_store[job_id] = {
+            "job_id": job_id,
+            "status": "started",
+            "progress": 0,
+            "step": "Initializing...",
+            "result": None,
+            "error": None,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
 
-        # Step 1: Extract article content
-        try:
-            title, raw_content, is_paywalled = await article_extractor.extract_article(str(request.url))
-        except Exception as e:
-            logger.error(f"Extraction failed: {str(e)}")
-            return ProcessArticleResponse(
-                success=False,
-                error=f"Failed to extract article content: {str(e)}"
-            )
+        # Start background processing
+        asyncio.create_task(process_article_background(job_id, request))
 
-        if is_paywalled:
-            return ProcessArticleResponse(
-                success=False,
-                error="Article appears to be behind a paywall or requires subscription"
-            )
+        logger.info(f"Started async processing for job {job_id}: {request.url} (mode: {request.mode})")
 
-        # Step 2: Clean content
-        cleaned_content = article_extractor.clean_content(raw_content)
-
-        if len(cleaned_content.strip()) < 100:
-            return ProcessArticleResponse(
-                success=False,
-                error="Insufficient article content found after cleaning"
-            )
-
-        # Step 3: Process based on mode
-        final_text = cleaned_content
-        summary = None
-
-        if request.mode == "summary":
-            try:
-                summary = await llm_service.summarize_article(title, cleaned_content)
-                final_text = summary
-            except Exception as e:
-                logger.error(f"Summarization failed: {str(e)}")
-                return ProcessArticleResponse(
-                    success=False,
-                    error=f"Failed to generate summary: {str(e)}"
-                )
-
-        # Step 4: Enhance text for audio (optional)
-        try:
-            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
-            final_text = enhanced_text
-        except Exception as e:
-            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
-            # Continue with non-enhanced text
-
-        # Step 5: Generate audio
-        try:
-            audio_path, audio_metadata = await tts_service.generate_audio(final_text)
-        except Exception as e:
-            logger.error(f"TTS generation failed: {str(e)}")
-            return ProcessArticleResponse(
-                success=False,
-                error=f"Failed to generate audio: {str(e)}"
-            )
-
-        # Calculate metadata
-        word_count = len(final_text.split())
-        reading_time = article_extractor.calculate_reading_time(final_text)
-
-        # Build response
-        article_content = ArticleContent(
-            title=title,
-            content=cleaned_content,
-            summary=summary if request.mode == "summary" else None,
-            word_count=word_count,
-            estimated_reading_time=reading_time
-        )
-
-        audio_response = AudioResponse(
-            audio_id=audio_metadata["audio_id"],
-            duration=None,  # Could calculate with audio analysis
-            size=audio_metadata.get("size")
-        )
-
-        # Schedule cleanup of old files
-        background_tasks.add_task(tts_service.cleanup_old_files, 24)
-
-        return ProcessArticleResponse(
-            success=True,
-            article=article_content,
-            audio=audio_response,
-            error=None
+        return JobStartResponse(
+            job_id=job_id,
+            status="started",
+            estimated_time=60  # ~1 minute estimate
         )
 
     except Exception as e:
-        logger.error(f"Unexpected error processing article: {str(e)}")
-        return ProcessArticleResponse(
-            success=False,
-            error=f"Internal server error: {str(e)}"
-        )
+        logger.error(f"Failed to start article processing: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start processing: {str(e)}")
+
+
+@router.get("/job-status/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    """Get the current status of a processing job."""
+    if job_id not in job_store:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job_data = job_store[job_id]
+
+    return JobStatusResponse(
+        job_id=job_data["job_id"],
+        status=job_data["status"],
+        progress=job_data["progress"],
+        step=job_data["step"],
+        result=job_data["result"],
+        error=job_data["error"],
+        created_at=job_data["created_at"],
+        updated_at=job_data["updated_at"]
+    )
 
 
 @router.get("/audio/{audio_id}")

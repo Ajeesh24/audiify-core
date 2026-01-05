@@ -40,6 +40,25 @@ class ProcessArticleResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
 
 
+class JobStartResponse(BaseModel):
+    """Response when starting an async job."""
+    job_id: str = Field(..., description="Unique job identifier for tracking")
+    status: str = Field(default="started", description="Job status")
+    estimated_time: int = Field(default=60, description="Estimated completion time in seconds")
+
+
+class JobStatusResponse(BaseModel):
+    """Response for job status check."""
+    job_id: str = Field(..., description="Job identifier")
+    status: Literal["processing", "completed", "error"] = Field(..., description="Current job status")
+    progress: int = Field(0, description="Progress percentage (0-100)")
+    step: Optional[str] = Field(None, description="Current processing step")
+    result: Optional[ProcessArticleResponse] = Field(None, description="Final result if completed")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    created_at: Optional[str] = Field(None, description="Job creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+
+
 class ErrorResponse(BaseModel):
     """Error response model."""
     error: str = Field(..., description="Error message")
