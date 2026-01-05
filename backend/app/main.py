@@ -211,8 +211,54 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             }
         }
 
-    # Create Lambda handler
-    lambda_handler = Mangum(app_for_lambda, lifespan="off")
+    # Create hybrid Lambda handler for both HTTP and SQS events
+    mangum_handler = Mangum(app_for_lambda, lifespan="off")
+
+    async def lambda_handler(event, context):
+        """
+        Hybrid Lambda handler that routes HTTP and SQS events appropriately.
+        """
+        import json
+        import asyncio
+
+        # Check if this is an SQS event
+        if 'Records' in event and len(event['Records']) > 0:
+            # This is an SQS event - process background job
+            logger.info(f"Processing SQS event with {len(event['Records'])} records")
+
+            for record in event['Records']:
+                if record.get('eventSource') == 'aws:sqs':
+                    try:
+                        # Parse SQS message
+                        message_body = json.loads(record['body'])
+                        job_id = message_body['job_id']
+                        request_data = message_body['request_data']
+
+                        logger.info(f"Processing background job {job_id}")
+
+                        # Import here to avoid circular imports
+                        from app.services.job_storage import JobStorage
+                        from app.models import ArticleProcessRequest
+
+                        # Process the job
+                        job_storage = JobStorage()
+                        request = ArticleProcessRequest(**request_data)
+
+                        # Import background processing function
+                        from app.api.routes import process_article_background
+
+                        # Process in background
+                        await process_article_background(job_id, request, job_storage)
+
+                    except Exception as e:
+                        logger.error(f"Failed to process SQS record: {str(e)}")
+                        raise
+
+            return {"statusCode": 200, "body": "SQS events processed"}
+
+        else:
+            # This is an HTTP event - use Mangum
+            return mangum_handler(event, context)
 else:
     # Create a dummy handler for non-Lambda environments
     def lambda_handler(event, context):

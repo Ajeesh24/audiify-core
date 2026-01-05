@@ -74,6 +74,33 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
           "ecr:BatchGetImage"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:SendMessage"
+        ]
+        Resource = [
+          aws_sqs_queue.job_queue.arn
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.job_status.arn,
+          "${aws_dynamodb_table.job_status.arn}/*"
+        ]
       }
     ]
   })
@@ -143,6 +170,8 @@ resource "aws_lambda_function" "backend" {
       AUDIO_BUCKET_NAME        = aws_s3_bucket.audio_storage.bucket
       TEMP_DIR                 = "/tmp"
       OPENAI_API_KEY_PARAMETER = aws_ssm_parameter.openai_api_key.name
+      SQS_QUEUE_URL            = aws_sqs_queue.job_queue.url
+      DYNAMODB_TABLE_NAME      = aws_dynamodb_table.job_status.name
     }
   }
 
@@ -157,6 +186,19 @@ resource "aws_lambda_function" "backend" {
   ]
 
   tags = local.common_tags
+}
+
+# SQS Event Source Mapping for Lambda
+resource "aws_lambda_event_source_mapping" "sqs_trigger" {
+  event_source_arn = aws_sqs_queue.job_queue.arn
+  function_name    = aws_lambda_function.backend.arn
+  batch_size       = 1
+  enabled          = true
+
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy.lambda_execution_policy,
+  ]
 }
 
 # CloudWatch Log Group for Lambda
@@ -357,6 +399,56 @@ resource "aws_ssm_parameter" "openai_api_key" {
   name  = "/${local.project_name}/${var.environment}/openai-api-key"
   type  = "SecureString"
   value = var.openai_api_key
+
+  tags = local.common_tags
+}
+
+# SQS Queue for background job processing
+resource "aws_sqs_queue" "job_queue" {
+  name                      = "${local.project_name}-job-queue-${var.environment}"
+  delay_seconds            = 0
+  max_message_size         = 262144
+  message_retention_seconds = 1209600  # 14 days
+  receive_wait_time_seconds = 0
+  visibility_timeout_seconds = 900     # 15 minutes (Lambda max timeout)
+
+  tags = local.common_tags
+}
+
+# DynamoDB table for job status storage
+resource "aws_dynamodb_table" "job_status" {
+  name           = "${local.project_name}-jobs-${var.environment}"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "job_id"
+
+  attribute {
+    name = "job_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  attribute {
+    name = "created_at"
+    type = "S"
+  }
+
+  # Global secondary index for querying by status
+  global_secondary_index {
+    name               = "status-created-index"
+    hash_key           = "status"
+    range_key          = "created_at"
+    projection_type    = "ALL"
+  }
+
+  # TTL for automatic cleanup of old jobs
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
 
   tags = local.common_tags
 }

@@ -21,6 +21,7 @@ from app.models import (
 from app.services.extractor import ArticleExtractor
 from app.services.llm_service import LLMService
 from app.services.tts_service import TTSService
+from app.services.job_storage import JobStorage
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -31,73 +32,59 @@ settings = get_settings()
 article_extractor = ArticleExtractor()
 llm_service = LLMService()
 tts_service = TTSService()
+job_storage = JobStorage()  # DynamoDB-based job storage
 
-# In-memory job storage (in production, use Redis/DynamoDB)
-job_store = {}
-
-async def update_job_status(job_id: str, status: str, progress: int = 0, step: str = None, result: ProcessArticleResponse = None, error: str = None):
-    """Update job status in the store."""
-    if job_id in job_store:
-        job_store[job_id].update({
-            "status": status,
-            "progress": progress,
-            "step": step,
-            "result": result,
-            "error": error,
-            "updated_at": datetime.now().isoformat()
-        })
-
-async def process_article_background(job_id: str, request: ArticleProcessRequest):
+async def process_article_background(job_id: str, request: ArticleProcessRequest, job_storage: JobStorage):
     """Background task to process article asynchronously."""
     try:
-        await update_job_status(job_id, "processing", 10, "Validating URL...")
+        job_storage.update_job_status(job_id, "processing", 10, "Validating URL...")
 
         # Validate URL first
         is_valid = await article_extractor.validate_url(str(request.url))
         if not is_valid:
-            await update_job_status(job_id, "error", 0, error="Invalid or inaccessible URL")
+            job_storage.update_job_status(job_id, "error", 0, error="Invalid or inaccessible URL")
             return
 
-        await update_job_status(job_id, "processing", 20, "Extracting article content...")
+        job_storage.update_job_status(job_id, "processing", 20, "Extracting article content...")
 
         # Step 1: Extract article content
         try:
             title, raw_content, is_paywalled = await article_extractor.extract_article(str(request.url))
         except Exception as e:
             logger.error(f"Extraction failed: {str(e)}")
-            await update_job_status(job_id, "error", 0, error=f"Failed to extract article content: {str(e)}")
+            job_storage.update_job_status(job_id, "error", 0, error=f"Failed to extract article content: {str(e)}")
             return
 
         if is_paywalled:
-            await update_job_status(job_id, "error", 0, error="Article appears to be behind a paywall or requires subscription")
+            job_storage.update_job_status(job_id, "error", 0, error="Article appears to be behind a paywall or requires subscription")
             return
 
-        await update_job_status(job_id, "processing", 30, "Cleaning content...")
+        job_storage.update_job_status(job_id, "processing", 30, "Cleaning content...")
 
         # Step 2: Clean content
         cleaned_content = article_extractor.clean_content(raw_content)
 
         if len(cleaned_content.strip()) < 100:
-            await update_job_status(job_id, "error", 0, error="Insufficient article content found after cleaning")
+            job_storage.update_job_status(job_id, "error", 0, error="Insufficient article content found after cleaning")
             return
 
-        await update_job_status(job_id, "processing", 40, "Processing content...")
+        job_storage.update_job_status(job_id, "processing", 40, "Processing content...")
 
         # Step 3: Process based on mode
         final_text = cleaned_content
         summary = None
 
         if request.mode == "summary":
-            await update_job_status(job_id, "processing", 50, "Generating summary...")
+            job_storage.update_job_status(job_id, "processing", 50, "Generating summary...")
             try:
                 summary = await llm_service.summarize_article(title, cleaned_content)
                 final_text = summary
             except Exception as e:
                 logger.error(f"Summarization failed: {str(e)}")
-                await update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
+                job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
                 return
 
-        await update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
+        job_storage.update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
 
         # Step 4: Enhance text for audio (optional)
         try:
@@ -107,17 +94,17 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             logger.warning(f"Audio enhancement failed, using original: {str(e)}")
             # Continue with non-enhanced text
 
-        await update_job_status(job_id, "processing", 80, "Generating audio...")
+        job_storage.update_job_status(job_id, "processing", 80, "Generating audio...")
 
         # Step 5: Generate audio
         try:
             audio_path, audio_metadata = await tts_service.generate_audio(final_text)
         except Exception as e:
             logger.error(f"TTS generation failed: {str(e)}")
-            await update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
+            job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
             return
 
-        await update_job_status(job_id, "processing", 95, "Finalizing...")
+        job_storage.update_job_status(job_id, "processing", 95, "Finalizing...")
 
         # Calculate metadata
         word_count = len(final_text.split())
@@ -145,14 +132,14 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             error=None
         )
 
-        await update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
+        job_storage.update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
 
         # Schedule cleanup of old files
         asyncio.create_task(cleanup_old_files_async())
 
     except Exception as e:
         logger.error(f"Unexpected error processing article: {str(e)}")
-        await update_job_status(job_id, "error", 0, error=f"Internal server error: {str(e)}")
+        job_storage.update_job_status(job_id, "error", 0, error=f"Internal server error: {str(e)}")
 
 async def cleanup_old_files_async():
     """Async wrapper for cleanup."""
@@ -197,20 +184,13 @@ async def process_article(request: ArticleProcessRequest):
         # Generate unique job ID
         job_id = str(uuid.uuid4())
 
-        # Initialize job in store
-        job_store[job_id] = {
-            "job_id": job_id,
-            "status": "started",
-            "progress": 0,
-            "step": "Initializing...",
-            "result": None,
-            "error": None,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
+        # Create job in DynamoDB and send to SQS
+        request_data = {
+            "url": str(request.url),
+            "mode": request.mode
         }
 
-        # Start background processing
-        asyncio.create_task(process_article_background(job_id, request))
+        job_storage.create_job(job_id, request_data)
 
         logger.info(f"Started async processing for job {job_id}: {request.url} (mode: {request.mode})")
 
@@ -228,10 +208,10 @@ async def process_article(request: ArticleProcessRequest):
 @router.get("/job-status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
     """Get the current status of a processing job."""
-    if job_id not in job_store:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job_data = job_storage.get_job(job_id)
 
-    job_data = job_store[job_id]
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Job not found")
 
     return JobStatusResponse(
         job_id=job_data["job_id"],
