@@ -139,7 +139,6 @@ resource "aws_lambda_function" "backend" {
   environment {
     variables = {
       ENVIRONMENT              = var.environment
-      AWS_DEFAULT_REGION       = var.aws_region
       CORS_ORIGINS             = jsonencode(var.cors_origins)
       AUDIO_BUCKET_NAME        = aws_s3_bucket.audio_storage.bucket
       TEMP_DIR                 = "/tmp"
