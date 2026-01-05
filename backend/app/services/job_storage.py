@@ -77,20 +77,42 @@ class JobStorage:
     def update_job(self, job_id: str, **updates) -> bool:
         """Update job status in DynamoDB."""
         try:
-            # Prepare update expression
+            # Prepare update expression with attribute names for reserved keywords
             update_expression = "SET updated_at = :updated_at"
             expression_values = {':updated_at': datetime.now().isoformat()}
+            expression_names = {}
 
             for key, value in updates.items():
                 if key in ['status', 'progress', 'step', 'result', 'error']:
-                    update_expression += f", {key} = :{key}"
-                    expression_values[f":{key}"] = value
+                    # Handle reserved keywords with expression attribute names
+                    if key == 'status':
+                        attr_name = '#status'
+                        expression_names['#status'] = 'status'
+                    else:
+                        attr_name = key
 
-            self.table.update_item(
-                Key={'job_id': job_id},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_values
-            )
+                    update_expression += f", {attr_name} = :{key}"
+
+                    # Convert complex objects to dict for DynamoDB storage
+                    if hasattr(value, 'dict'):  # Pydantic model
+                        expression_values[f":{key}"] = value.dict()
+                    elif hasattr(value, '__dict__'):  # Other objects
+                        expression_values[f":{key}"] = value.__dict__
+                    else:
+                        expression_values[f":{key}"] = value
+
+            # Build the update request
+            update_kwargs = {
+                'Key': {'job_id': job_id},
+                'UpdateExpression': update_expression,
+                'ExpressionAttributeValues': expression_values
+            }
+
+            # Only add ExpressionAttributeNames if we have reserved keywords
+            if expression_names:
+                update_kwargs['ExpressionAttributeNames'] = expression_names
+
+            self.table.update_item(**update_kwargs)
 
             logger.debug(f"Updated job {job_id}: {updates}")
             return True
