@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 import httpx
 import logging
 import boto3
+from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
 
@@ -91,9 +92,13 @@ class TTSService:
                         "storage": "s3"
                     }
                     return s3_url, metadata
-                except self.s3_client.exceptions.NoSuchKey:
-                    # File doesn't exist in S3, continue to generate
-                    pass
+                except ClientError as e:
+                    if e.response['Error']['Code'] == '404':
+                        # File doesn't exist in S3, continue to generate
+                        logger.debug(f"Audio {audio_id} not found in S3, generating new")
+                    else:
+                        # Other S3 error, log but continue to generate
+                        logger.warning(f"S3 error checking for {audio_id}: {str(e)}")
             else:
                 # Fallback to local storage check
                 local_path = os.path.join(self.temp_dir, audio_filename)
@@ -230,9 +235,11 @@ class TTSService:
                     logger.info(f"Generated presigned URL for {audio_id}")
                     return presigned_url
 
-                except self.s3_client.exceptions.NoSuchKey:
-                    logger.info(f"Audio {audio_id} not found in S3, checking local storage")
-                    pass
+                except ClientError as e:
+                    if e.response['Error']['Code'] == '404':
+                        logger.info(f"Audio {audio_id} not found in S3, checking local storage")
+                    else:
+                        logger.warning(f"S3 error getting URL for {audio_id}: {str(e)}")
 
             # Fallback to local file check
             audio_files = [f for f in os.listdir(self.temp_dir) if f.startswith(audio_id)]

@@ -91,6 +91,9 @@ class JobStorage:
                     elif key == 'result':
                         attr_name = '#result'
                         expression_names['#result'] = 'result'
+                    elif key == 'error':
+                        attr_name = '#error'
+                        expression_names['#error'] = 'error'
                     else:
                         attr_name = key
 
