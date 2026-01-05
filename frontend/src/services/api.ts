@@ -69,6 +69,10 @@ export interface AudioResponse {
   audio_id: string;
   duration?: number;
   size?: number;
+  url?: string;  // S3 URL or API endpoint
+  s3_key?: string;
+  storage?: 's3' | 'local';
+  expires_at?: string;
 }
 
 export interface ProcessArticleResponse {
@@ -76,6 +80,23 @@ export interface ProcessArticleResponse {
   article?: ArticleContent;
   audio?: AudioResponse;
   error?: string;
+}
+
+export interface JobStartResponse {
+  job_id: string;
+  status: string;
+  estimated_time: number;
+}
+
+export interface JobStatusResponse {
+  job_id: string;
+  status: 'processing' | 'completed' | 'error';
+  progress: number;
+  step?: string;
+  result?: ProcessArticleResponse;
+  error?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // API Functions
@@ -92,15 +113,82 @@ export const audifyApi = {
     return response.data;
   },
 
-  // Process article
-  async processArticle(request: ArticleProcessRequest): Promise<ProcessArticleResponse> {
+  // Start async article processing
+  async startProcessing(request: ArticleProcessRequest): Promise<JobStartResponse> {
     const response = await apiClient.post('/process-article', request);
     return response.data;
   },
 
-  // Get audio stream URL
+  // Get job status
+  async getJobStatus(jobId: string): Promise<JobStatusResponse> {
+    const response = await apiClient.get(`/job-status/${jobId}`);
+    return response.data;
+  },
+
+  // Poll job status until completion
+  async pollJobStatus(
+    jobId: string,
+    onProgress?: (status: JobStatusResponse) => void,
+    pollInterval: number = 2000,
+    maxAttempts: number = 180  // 6 minutes with 2-second intervals
+  ): Promise<JobStatusResponse> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const status = await this.getJobStatus(jobId);
+
+      // Call progress callback if provided
+      if (onProgress) {
+        onProgress(status);
+      }
+
+      // Check if job is complete
+      if (status.status === 'completed' || status.status === 'error') {
+        return status;
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error('Job polling timeout - processing took too long');
+  },
+
+  // Complete article processing (combines start + poll)
+  async processArticle(
+    request: ArticleProcessRequest,
+    onProgress?: (status: JobStatusResponse) => void
+  ): Promise<ProcessArticleResponse> {
+    // Start the job
+    const jobStart = await this.startProcessing(request);
+
+    // Poll for completion
+    const finalStatus = await this.pollJobStatus(jobStart.job_id, onProgress);
+
+    // Return the final result
+    if (finalStatus.status === 'error') {
+      throw new Error(finalStatus.error || 'Processing failed');
+    }
+
+    if (finalStatus.result) {
+      return finalStatus.result;
+    }
+
+    throw new Error('Processing completed but no result available');
+  },
+
+  // Get audio stream URL (now handles S3 URLs)
   getAudioStreamUrl(audioId: string): string {
     return `${API_BASE_URL}/audio/${audioId}`;
+  },
+
+  // Get direct audio URL from job result (prefers S3 URL)
+  getDirectAudioUrl(audio: AudioResponse): string {
+    // If we have an S3 URL, use it directly
+    if (audio.url && audio.url.startsWith('http')) {
+      return audio.url;
+    }
+
+    // Fallback to streaming endpoint
+    return this.getAudioStreamUrl(audio.audio_id);
   },
 
   // Get available voices
