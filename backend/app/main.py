@@ -255,12 +255,22 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
                             logger.error(f"Failed to process SQS record: {str(e)}")
                             raise
 
-            # Run async processing synchronously
-            asyncio.run(process_sqs_records())
+            # Create new event loop for SQS processing only
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Run SQS processing
+            loop.run_until_complete(process_sqs_records())
             return {"statusCode": 200, "body": "SQS events processed"}
 
         else:
-            # This is an HTTP event - use Mangum
+            # This is an HTTP event - use Mangum (handles its own event loop)
             return mangum_handler(event, context)
 else:
     # Create a dummy handler for non-Lambda environments
