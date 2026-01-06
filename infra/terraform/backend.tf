@@ -546,32 +546,7 @@ resource "aws_cognito_user_pool_client" "main" {
   # No client secret for public frontend clients
   generate_secret = false
 
-  # Allowed OAuth flows for web app
-  allowed_oauth_flows                  = ["code", "implicit"]
-  allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_scopes                 = ["phone", "email", "openid", "profile", "aws.cognito.signin.user.admin"]
-
-  # Callback URLs for local and production
-  callback_urls = [
-    "http://localhost:3000",
-    "https://audifyy.com",
-    "https://www.audifyy.com"
-  ]
-
-  logout_urls = [
-    "http://localhost:3000",
-    "https://audifyy.com",
-    "https://www.audifyy.com"
-  ]
-
-  # Dynamic identity providers based on what's configured
-  supported_identity_providers = local.identity_providers
-
-  # Ensure identity providers are created first (if they exist)
-  depends_on = [
-    aws_cognito_identity_provider.google,
-    aws_cognito_identity_provider.apple
-  ]
+  tags = local.common_tags
 }
 
 # Cognito Identity Pool
