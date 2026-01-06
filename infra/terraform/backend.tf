@@ -545,8 +545,6 @@ resource "aws_cognito_user_pool_client" "main" {
 
   # No client secret for public frontend clients
   generate_secret = false
-
-  tags = local.common_tags
 }
 
 # Cognito Identity Pool
