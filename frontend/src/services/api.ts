@@ -262,6 +262,12 @@ export const audifyApi = {
     return `${API_BASE_URL}/audio/${audioId}`;
   },
 
+  // Get presigned URL for audio (returns JSON with URL)
+  async getAudioPresignedUrl(audioId: string): Promise<string> {
+    const response = await apiClient.get(`/audio/${audioId}/url`);
+    return response.data.url;
+  },
+
   // Get direct audio URL from job result (prefers S3 URL)
   getDirectAudioUrl(audio: AudioResponse): string {
     // If we have an S3 URL, use it directly

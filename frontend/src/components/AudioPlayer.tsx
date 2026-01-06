@@ -4,7 +4,6 @@ import { Card, CardContent } from './ui/card';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { audifyApi, AudioResponse } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface AudioPlayerProps {
   audio: AudioResponse;
@@ -24,37 +23,46 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string>('');
 
-  // Audio URL - Simple approach: use getDirectAudioUrl which handles S3 vs API fallback
-  const audioUrl = audifyApi.getDirectAudioUrl(audio);
-
-  // Debug logging to see what URL we're getting
+  // Get presigned URL on component mount
   useEffect(() => {
-    console.log('🎵 AudioPlayer Debug:', {
-      audio,
-      audioUrl,
-      audioId: audio.audio_id,
-      url: audio.url,
-      storage: audio.storage
-    });
+    const fetchAudioUrl = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-    // Test the URL directly
-    console.log('🔗 Full Audio URL:', audioUrl);
-    console.log('🧪 Testing URL accessibility...');
-
-    fetch(audioUrl, { method: 'HEAD' })
-      .then(response => {
-        console.log('✅ URL Test Result:', {
-          status: response.status,
-          statusText: response.statusText,
-          contentType: response.headers.get('content-type'),
-          contentLength: response.headers.get('content-length')
+        const directUrl = audifyApi.getDirectAudioUrl(audio);
+        console.log('🎵 AudioPlayer Debug:', {
+          audio,
+          directUrl,
+          audioId: audio.audio_id,
+          url: audio.url,
+          storage: audio.storage
         });
-      })
-      .catch(error => {
-        console.error('❌ URL Test Failed:', error);
-      });
-  }, [audio, audioUrl]);
+
+        // If we have a direct S3 URL, use it
+        if (directUrl.startsWith('https://') && !directUrl.includes('execute-api')) {
+          console.log('🔗 Using direct S3 URL:', directUrl);
+          setAudioUrl(directUrl);
+          return;
+        }
+
+        // Otherwise, fetch presigned URL using the new API endpoint
+        console.log('🔐 Fetching presigned URL for audio ID:', audio.audio_id);
+        const presignedUrl = await audifyApi.getAudioPresignedUrl(audio.audio_id);
+
+        console.log('✅ Got presigned URL:', presignedUrl?.substring(0, 80) + '...');
+        setAudioUrl(presignedUrl);
+
+      } catch (error) {
+        console.error('❌ Failed to get audio URL:', error);
+        setError('Failed to load audio. Please try again.');
+      }
+    };
+
+    fetchAudioUrl();
+  }, [audio]);
 
   useEffect(() => {
     const audio = audioRef.current;

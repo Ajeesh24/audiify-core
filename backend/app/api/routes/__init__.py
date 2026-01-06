@@ -238,6 +238,26 @@ async def get_job_status(
     )
 
 
+@router.get("/audio/{audio_id}/url")
+async def get_audio_url(
+    audio_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """Get presigned URL for audio file. Returns JSON with URL."""
+    try:
+        # Use TTS service to get the audio URL with user verification
+        audio_url = tts_service.get_audio_url(audio_id, user_id)
+
+        if not audio_url:
+            raise HTTPException(status_code=404, detail="Audio file not found or access denied")
+
+        return {"url": audio_url, "expires_in": 3600}
+
+    except Exception as e:
+        logger.error(f"Error getting audio URL {audio_id} for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get audio URL")
+
+
 @router.get("/audio/{audio_id}")
 async def stream_audio(
     audio_id: str,
