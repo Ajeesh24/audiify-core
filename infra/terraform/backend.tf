@@ -520,10 +520,9 @@ resource "aws_cognito_user_pool_client" "main" {
   name         = "${local.project_name}-client-${var.environment}"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  # Authentication flows
+  # Authentication flows (use newer ALLOW_ prefixed format)
   explicit_auth_flows = [
-    "ADMIN_NO_SRP_AUTH",
-    "USER_PASSWORD_AUTH",
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH",
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
