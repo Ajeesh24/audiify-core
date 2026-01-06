@@ -65,43 +65,85 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
   }, [audio]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const audioElement = audioRef.current;
+    if (!audioElement || !audioUrl) return;
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      setDuration(audioElement.duration);
       setIsLoading(false);
+      console.log('✅ Audio metadata loaded successfully');
     };
 
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+      setCurrentTime(audioElement.currentTime);
     };
 
     const handleEnded = () => {
       setIsPlaying(false);
     };
 
-    const handleError = () => {
+    const handleError = (e: Event) => {
+      console.error('❌ Audio element error details:', {
+        error: e,
+        audioUrl: audioUrl,
+        networkState: audioElement.networkState,
+        readyState: audioElement.readyState,
+        errorCode: audioElement.error?.code,
+        errorMessage: audioElement.error?.message
+      });
       setError('Failed to load audio');
       setIsLoading(false);
     };
 
     const handleCanPlay = () => {
       setIsLoading(false);
+      console.log('✅ Audio can play - ready for playback');
     };
 
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('canplay', handleCanPlay);
+    const handleLoadStart = () => {
+      console.log('🔄 Audio load started for URL:', audioUrl);
+    };
+
+    const handleLoadError = () => {
+      console.error('❌ Audio load error for URL:', audioUrl);
+    };
+
+    // Test the URL directly before setting it on audio element
+    console.log('🧪 Testing presigned URL accessibility...');
+    fetch(audioUrl, { method: 'HEAD' })
+      .then(response => {
+        console.log('🔗 Presigned URL test result:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: {
+            'content-type': response.headers.get('content-type'),
+            'content-length': response.headers.get('content-length'),
+            'access-control-allow-origin': response.headers.get('access-control-allow-origin')
+          }
+        });
+      })
+      .catch(error => {
+        console.error('❌ Presigned URL test failed:', error);
+      });
+
+    audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audioElement.addEventListener('timeupdate', handleTimeUpdate);
+    audioElement.addEventListener('ended', handleEnded);
+    audioElement.addEventListener('error', handleError);
+    audioElement.addEventListener('canplay', handleCanPlay);
+    audioElement.addEventListener('loadstart', handleLoadStart);
+    audioElement.addEventListener('abort', handleLoadError);
+    audioElement.addEventListener('stalled', handleLoadError);
 
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('canplay', handleCanPlay);
+      audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+      audioElement.removeEventListener('ended', handleEnded);
+      audioElement.removeEventListener('error', handleError);
+      audioElement.removeEventListener('canplay', handleCanPlay);
+      audioElement.removeEventListener('loadstart', handleLoadStart);
+      audioElement.removeEventListener('abort', handleLoadError);
+      audioElement.removeEventListener('stalled', handleLoadError);
     };
   }, [audioUrl]);
 
