@@ -20,26 +20,11 @@ export const amplifyConfig = {
       // AWS Region
       region: import.meta.env.VITE_COGNITO_REGION || 'ap-southeast-2',
 
-      // Sign up configuration
-      signUpVerificationMethod: 'code', // 'code' | 'link'
+      // Sign up configuration - simplified for email/password auth
+      signUpVerificationMethod: 'code',
 
-      // Login with
+      // Basic login configuration - no OAuth complexity
       loginWith: {
-        oauth: {
-          domain: `${import.meta.env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain'}.auth.ap-southeast-2.amazoncognito.com`,
-          scopes: ['phone', 'email', 'openid', 'profile', 'aws.cognito.signin.user.admin'],
-          redirectSignIn: [
-            'http://localhost:3000/',
-            'https://audifyy.com/',
-            'https://www.audifyy.com/'
-          ],
-          redirectSignOut: [
-            'http://localhost:3000/',
-            'https://audifyy.com/',
-            'https://www.audifyy.com/'
-          ],
-          responseType: 'code' as const,
-        },
         email: true,
         username: false,
       }
@@ -61,13 +46,7 @@ export const getRuntimeAmplifyConfig = () => {
           identityPoolId: env.VITE_COGNITO_IDENTITY_POOL_ID || amplifyConfig.Auth.Cognito.identityPoolId,
           region: env.VITE_COGNITO_REGION || amplifyConfig.Auth.Cognito.region,
           signUpVerificationMethod: amplifyConfig.Auth.Cognito.signUpVerificationMethod,
-          loginWith: {
-            ...amplifyConfig.Auth.Cognito.loginWith,
-            oauth: {
-              ...amplifyConfig.Auth.Cognito.loginWith.oauth,
-              domain: `${(env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain')}.auth.${env.VITE_COGNITO_REGION || 'ap-southeast-2'}.amazoncognito.com`,
-            }
-          }
+          loginWith: amplifyConfig.Auth.Cognito.loginWith
         }
       }
     };
