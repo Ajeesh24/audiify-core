@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { audifyApi, AudioResponse } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AudioPlayerProps {
   audio: AudioResponse;
@@ -24,8 +25,19 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Audio URL - Use getDirectAudioUrl to prefer S3 presigned URLs over authenticated endpoints
+  // Audio URL - Simple approach: use getDirectAudioUrl which handles S3 vs API fallback
   const audioUrl = audifyApi.getDirectAudioUrl(audio);
+
+  // Debug logging to see what URL we're getting
+  useEffect(() => {
+    console.log('🎵 AudioPlayer Debug:', {
+      audio,
+      audioUrl,
+      audioId: audio.audio_id,
+      url: audio.url,
+      storage: audio.storage
+    });
+  }, [audio, audioUrl]);
 
   useEffect(() => {
     const audio = audioRef.current;

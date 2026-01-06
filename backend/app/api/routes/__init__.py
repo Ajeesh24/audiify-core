@@ -121,12 +121,15 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             estimated_reading_time=reading_time
         )
 
-        # Create audio response with S3 or local URL information
+        # Create audio response with proper URL handling
+        # Only include direct URL if it's an HTTP URL (S3), not local file paths
+        direct_audio_url = audio_url if audio_url.startswith('http') else None
+
         audio_response = AudioResponse(
             audio_id=audio_metadata["audio_id"],
             duration=None,  # Could calculate with audio analysis
             size=audio_metadata.get("size"),
-            url=audio_url,  # S3 URL or local path
+            url=direct_audio_url,  # S3 URL only, not local paths
             s3_key=audio_metadata.get("s3_key"),
             storage=audio_metadata.get("storage", "unknown")
         )
