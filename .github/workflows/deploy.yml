@@ -106,11 +106,32 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
         role-chaining: true
 
+    - name: Check for backend changes
+      id: backend-changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "Manual deployment - building backend"
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          # Check if backend directory has changes in this push
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.sha }} | grep -E '^(backend/|Dockerfile|requirements\.txt)' || true)
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Backend changes detected:"
+            echo "$CHANGED_FILES"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No backend changes detected - skipping Docker build"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+
     - name: Login to Amazon ECR
+      if: steps.backend-changes.outputs.changed == 'true'
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Get image version from tfvars
+      if: steps.backend-changes.outputs.changed == 'true'
       id: get-version
       run: |
         IMAGE_TAG=$(grep 'image_tag' infra/terraform/environments/dev.tfvars | cut -d'"' -f2)
@@ -118,6 +139,7 @@ jobs:
         echo "Using image version: $IMAGE_TAG"
 
     - name: Build and push Docker image
+      if: steps.backend-changes.outputs.changed == 'true'
       env:
         IMAGE_TAG: ${{ steps.get-version.outputs.image_tag }}
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -148,6 +170,14 @@ jobs:
       run: |
         cd infra/terraform
         terraform init
+
+        # Display deployment strategy
+        if [ "${{ steps.backend-changes.outputs.changed }}" = "true" ]; then
+          echo "🔄 Deploying with NEW backend image (backend changes detected)"
+        else
+          echo "♻️ Deploying with EXISTING backend image (no backend changes)"
+          echo "   Using current image tag from tfvars for infrastructure-only deployment"
+        fi
 
         # Build terraform plan with required variables
         TERRAFORM_VARS="-var=openai_api_key=${{ secrets.OPENAI_API_KEY }}"
