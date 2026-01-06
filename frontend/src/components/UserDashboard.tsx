@@ -83,13 +83,80 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onSignOut }) => {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const playAudio = (audioId: string) => {
-    const audioUrl = audifyApi.getAudioStreamUrl(audioId);
-    const audio = new Audio(audioUrl);
-    audio.play().catch(err => {
-      console.error('Failed to play audio:', err);
+  const playAudio = async (audioId: string) => {
+    try {
+      console.log('🎵 My Articles - Starting audio playback for:', audioId);
+
+      // Use the same presigned URL approach as AudioPlayer
+      console.log('🔐 My Articles - Fetching presigned URL for audio ID:', audioId);
+      const presignedUrl = await audifyApi.getAudioPresignedUrl(audioId);
+
+      console.log('✅ My Articles - Got presigned URL:', presignedUrl?.substring(0, 80) + '...');
+
+      // Test the presigned URL accessibility first
+      console.log('🧪 My Articles - Testing presigned URL accessibility...');
+      try {
+        const response = await fetch(presignedUrl, { method: 'HEAD' });
+        console.log('🔗 My Articles - Presigned URL test result:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: {
+            'content-type': response.headers.get('content-type'),
+            'content-length': response.headers.get('content-length'),
+            'access-control-allow-origin': response.headers.get('access-control-allow-origin')
+          }
+        });
+      } catch (testError) {
+        console.error('❌ My Articles - Presigned URL test failed:', testError);
+      }
+
+      // Create audio element and add comprehensive event logging
+      const audio = new Audio(presignedUrl);
+
+      audio.addEventListener('loadstart', () => {
+        console.log('🔄 My Articles - Audio load started');
+      });
+
+      audio.addEventListener('canplay', () => {
+        console.log('✅ My Articles - Audio can play - ready for playback');
+      });
+
+      audio.addEventListener('loadedmetadata', () => {
+        console.log('✅ My Articles - Audio metadata loaded successfully');
+      });
+
+      audio.addEventListener('error', (e) => {
+        console.error('❌ My Articles - Audio element error details:', {
+          error: e,
+          audioUrl: presignedUrl,
+          networkState: audio.networkState,
+          readyState: audio.readyState,
+          errorCode: audio.error?.code,
+          errorMessage: audio.error?.message
+        });
+      });
+
+      audio.addEventListener('abort', () => {
+        console.error('❌ My Articles - Audio loading aborted');
+      });
+
+      audio.addEventListener('stalled', () => {
+        console.error('❌ My Articles - Audio loading stalled');
+      });
+
+      // Attempt to play
+      console.log('▶️ My Articles - Starting audio playback...');
+      await audio.play();
+      console.log('🎵 My Articles - Audio playback started successfully!');
+
+    } catch (err) {
+      console.error('❌ My Articles - Failed to play audio:', {
+        error: err,
+        audioId: audioId,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error'
+      });
       setError('Failed to play audio. Please try again.');
-    });
+    }
   };
 
   if (loading && articles.length === 0) {
