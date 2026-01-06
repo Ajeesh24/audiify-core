@@ -21,6 +21,7 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>('');
@@ -147,6 +148,14 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
     };
   }, [audioUrl]);
 
+  // Update playback rate when speed changes
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    if (audioElement) {
+      audioElement.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
+
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio || isLoading) return;
@@ -205,6 +214,12 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
       setIsMuted(newVolume === 0);
     }
   };
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+  };
+
+  const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   const formatTime = (time: number) => {
     if (!time || !isFinite(time)) return '0:00';
@@ -314,29 +329,50 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
               </Button>
             </div>
 
-            {/* Volume controls */}
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleMute}
-                className="text-slate-400 hover:text-white"
-              >
-                {isMuted ? (
-                  <VolumeX className="w-4 h-4" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
-                )}
-              </Button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
-              />
+            {/* Volume and Speed controls */}
+            <div className="flex items-center space-x-4">
+              {/* Speed Control */}
+              <div className="flex items-center space-x-2">
+                <span className="text-slate-400 text-sm whitespace-nowrap">Speed</span>
+                <div className="relative">
+                  <select
+                    value={playbackSpeed}
+                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 min-w-[65px]"
+                  >
+                    {speedOptions.map((speed) => (
+                      <option key={speed} value={speed} className="bg-slate-800">
+                        {speed}x
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Volume controls */}
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleMute}
+                  className="text-slate-400 hover:text-white"
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-4 h-4" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </Button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                />
+              </div>
             </div>
           </div>
 

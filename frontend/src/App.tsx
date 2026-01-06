@@ -6,10 +6,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudioPlayer from '@/components/AudioPlayer';
+import RecentArticles from '@/components/RecentArticles';
 import WaveformVisual from '@/components/WaveformVisual';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AuthForm } from '@/components/AuthForm';
-import { UserDashboard } from '@/components/UserDashboard';
 import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
 
 function AuthenticatedApp() {
@@ -22,7 +22,7 @@ function AuthenticatedApp() {
   const [audioData, setAudioData] = useState<AudioResponse | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showDashboard, setShowDashboard] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Set up auth token getter for API requests
   useEffect(() => {
@@ -76,6 +76,9 @@ function AuthenticatedApp() {
         setAudioData(response.audio);
         setProcessingStep('Complete!');
         setProgress(100);
+
+        // Trigger refresh of recent articles list
+        setRefreshTrigger(prev => prev + 1);
       } else {
         setError('Incomplete response from server');
       }
@@ -109,14 +112,6 @@ function AuthenticatedApp() {
     if (e.key === 'Enter' && !isProcessing) {
       processArticle();
     }
-  };
-
-  const handleSignOut = () => {
-    setShowDashboard(false);
-    setUrl('');
-    setAudioData(null);
-    setArticleContent(null);
-    setError(null);
   };
 
   if (loading) {
@@ -240,44 +235,7 @@ function AuthenticatedApp() {
     );
   }
 
-  if (showDashboard) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 p-4">
-        {/* Ambient background effects */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="relative z-10 container mx-auto py-8 max-w-6xl">
-          {/* Header with back button */}
-          <div className="flex items-center justify-between mb-8">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-3"
-            >
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl shadow-lg">
-                <Headphones className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
-                Audifyy
-              </h1>
-            </motion.div>
-
-            <Button
-              onClick={() => setShowDashboard(false)}
-              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border border-slate-600/50"
-            >
-              Convert New Article
-            </Button>
-          </div>
-
-          <UserDashboard onSignOut={handleSignOut} />
-        </div>
-      </div>
-    );
-  }
+  // Dashboard functionality removed - articles now integrated into main page
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
@@ -309,14 +267,6 @@ function AuthenticatedApp() {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button
-              onClick={() => setShowDashboard(true)}
-              variant="outline"
-              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50"
-            >
-              <User className="w-4 h-4 mr-2" />
-              My Articles
-            </Button>
             <Button
               onClick={signOut}
               variant="outline"
@@ -480,6 +430,9 @@ function AuthenticatedApp() {
             </Card>
           </motion.div>
         )}
+
+        {/* Recent Articles Section */}
+        <RecentArticles refreshTrigger={refreshTrigger} />
 
         {/* Footer */}
         <motion.p
