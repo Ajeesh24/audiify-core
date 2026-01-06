@@ -238,39 +238,39 @@ function AuthenticatedApp() {
   // Dashboard functionality removed - articles now integrated into main page
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 safe-area-all">
       {/* Ambient background effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-8 max-w-4xl">
+      <div className="relative z-10 container mx-auto px-4 py-6 sm:py-8 max-w-4xl container-responsive">
         {/* Header with user info */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8"
         >
-          <div className="inline-flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
-              <Headphones className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl sm:rounded-2xl shadow-lg shadow-purple-500/25">
+              <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
                 Audifyy
               </h1>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-xs sm:text-sm">
                 Welcome back, {user?.name || user?.email?.split('@')[0]}!
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 sm:justify-end">
             <Button
               onClick={signOut}
               variant="outline"
-              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50"
+              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50 text-sm sm:text-base px-3 sm:px-4 py-2 touch-manipulation"
             >
               Sign Out
             </Button>
@@ -280,9 +280,9 @@ function AuthenticatedApp() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="text-center mb-6 sm:mb-8"
         >
-          <p className="text-slate-400 text-lg">
+          <p className="text-slate-400 text-base sm:text-lg leading-relaxed">
             Transform any article into crystal-clear audio. Listen on the go.
           </p>
         </motion.div>
@@ -294,12 +294,12 @@ function AuthenticatedApp() {
           transition={{ delay: 0.1 }}
         >
           <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
-            <CardContent className="p-8">
+            <CardContent className="p-4 sm:p-6 lg:p-8">
               {/* URL Input */}
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                    <Link2 className="w-5 h-5" />
+                  <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                    <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <Input
                     type="url"
@@ -307,29 +307,29 @@ function AuthenticatedApp() {
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    className="pl-12 h-14 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500 text-lg rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                    className="pl-10 sm:pl-12 h-12 sm:h-14 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 touch-manipulation"
                     disabled={isProcessing}
                   />
                 </div>
 
                 {/* Mode Selection */}
                 <div className="flex justify-center">
-                  <Tabs value={mode} onValueChange={(value) => setMode(value as 'full' | 'summary')} className="w-full max-w-md">
+                  <Tabs value={mode} onValueChange={(value) => setMode(value as 'full' | 'summary')} className="w-full max-w-sm sm:max-w-md">
                     <TabsList className="w-full bg-slate-800/50 p-1 rounded-xl h-auto">
                       <TabsTrigger
                         value="full"
-                        className="flex-1 py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all"
+                        className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all touch-manipulation"
                         disabled={isProcessing}
                       >
-                        <FileText className="w-4 h-4 mr-2" />
+                        <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                         Full Article
                       </TabsTrigger>
                       <TabsTrigger
                         value="summary"
-                        className="flex-1 py-3 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all"
+                        className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all touch-manipulation"
                         disabled={isProcessing}
                       >
-                        <Sparkles className="w-4 h-4 mr-2" />
+                        <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                         Summary Only
                       </TabsTrigger>
                     </TabsList>
@@ -340,16 +340,16 @@ function AuthenticatedApp() {
                 <Button
                   onClick={processArticle}
                   disabled={!url.trim() || isProcessing}
-                  className="w-full h-14 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white text-lg font-medium rounded-xl shadow-lg shadow-purple-500/25 transition-all duration-300 disabled:opacity-50"
+                  className="w-full h-12 sm:h-14 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white text-base sm:text-lg font-medium rounded-xl shadow-lg shadow-purple-500/25 transition-all duration-300 disabled:opacity-50 touch-manipulation"
                 >
                   {isProcessing ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      {processingStep || 'Processing...'}
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                      <span className="truncate">{processingStep || 'Processing...'}</span>
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-5 h-5 mr-2" />
+                      <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                       Generate Audio
                     </>
                   )}
@@ -358,7 +358,7 @@ function AuthenticatedApp() {
                 {/* Progress Bar */}
                 {isProcessing && progress > 0 && (
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm text-slate-400">
+                    <div className="flex justify-between text-xs sm:text-sm text-slate-400">
                       <span>Progress</span>
                       <span>{progress}%</span>
                     </div>
@@ -380,7 +380,7 @@ function AuthenticatedApp() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-center"
+                      className="p-3 sm:p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-center text-sm sm:text-base"
                     >
                       {error}
                     </motion.div>
@@ -399,7 +399,7 @@ function AuthenticatedApp() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ delay: 0.2 }}
-              className="mt-8"
+              className="mt-6 sm:mt-8"
             >
               <AudioPlayer
                 audio={audioData}
@@ -416,16 +416,16 @@ function AuthenticatedApp() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mt-8"
+            className="mt-6 sm:mt-8"
           >
             <Card className="bg-slate-900/30 border-slate-800/30 backdrop-blur-xl">
-              <CardContent className="p-8">
-                <div className="text-center mb-4">
-                  <p className="text-slate-300 font-medium">
+              <CardContent className="p-4 sm:p-6 lg:p-8">
+                <div className="text-center mb-3 sm:mb-4">
+                  <p className="text-slate-300 font-medium text-sm sm:text-base">
                     {processingStep || 'Processing article...'}
                   </p>
                 </div>
-                <WaveformVisual isAnimating={true} className="h-16" />
+                <WaveformVisual isAnimating={true} className="h-12 sm:h-16" />
               </CardContent>
             </Card>
           </motion.div>
@@ -439,7 +439,7 @@ function AuthenticatedApp() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center text-slate-600 text-sm mt-12"
+          className="text-center text-slate-600 text-xs sm:text-sm mt-8 sm:mt-12 leading-relaxed"
         >
           Powered by AI • Secure authentication • Natural voice synthesis
         </motion.p>

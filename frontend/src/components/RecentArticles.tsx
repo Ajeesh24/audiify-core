@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Play, Clock, ExternalLink, Calendar, Eye, Bookmark, Volume2 } from 'lucide-react';
+import { Play, Clock, ExternalLink, Calendar, Bookmark, Volume2 } from 'lucide-react';
 import { audifyApi, AudioResponse } from '@/services/api';
 import AudioPlayer from './AudioPlayer';
 
@@ -71,14 +71,6 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
     return date.toLocaleDateString();
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return 'Unknown size';
-    const sizes = ['Bytes', 'KB', 'MB'];
-    if (bytes === 0) return '0 Bytes';
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
   const handlePlayAudio = (article: Article) => {
     if (!article.audio) return;
 
@@ -132,16 +124,16 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
         className="w-full mt-8"
       >
         <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-violet-500 flex items-center justify-center">
-                  <Bookmark className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-purple-500 to-violet-500 flex items-center justify-center">
+                  <Bookmark className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-white">Recent Articles</h2>
-                  <p className="text-slate-400 text-sm">
+                  <h2 className="text-lg sm:text-xl font-semibold text-white">Recent Articles</h2>
+                  <p className="text-slate-400 text-xs sm:text-sm">
                     {articles.length} article{articles.length !== 1 ? 's' : ''} converted to audio
                   </p>
                 </div>
@@ -159,20 +151,20 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
             )}
 
             {/* Articles List */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {articles.length === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center py-12"
+                  className="text-center py-8 sm:py-12"
                 >
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
-                    <Volume2 className="w-8 h-8 text-slate-500" />
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-slate-800/50 flex items-center justify-center">
+                    <Volume2 className="w-6 h-6 sm:w-8 sm:h-8 text-slate-500" />
                   </div>
-                  <h3 className="text-lg font-medium text-slate-300 mb-2">
+                  <h3 className="text-base sm:text-lg font-medium text-slate-300 mb-2">
                     No articles yet
                   </h3>
-                  <p className="text-slate-500">
+                  <p className="text-sm sm:text-base text-slate-500">
                     Convert your first article above to get started!
                   </p>
                 </motion.div>
@@ -184,66 +176,62 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50 hover:bg-slate-800/50 transition-all duration-300"
+                      className="p-3 sm:p-4 lg:p-5 rounded-xl bg-slate-800/30 border border-slate-700/50 hover:bg-slate-800/50 transition-all duration-300"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                        <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
                           {/* Title */}
-                          <h3 className="text-lg font-medium text-white mb-2 truncate">
+                          <h3 className="text-base sm:text-lg font-medium text-white leading-tight line-clamp-2">
                             {article.title || 'Untitled Article'}
                           </h3>
 
-                          {/* Meta info */}
-                          <div className="flex items-center space-x-4 text-sm text-slate-400 mb-3">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-4 h-4" />
-                              <span>{formatDate(article.created_at)}</span>
+                          {/* Meta info - Stack on mobile, inline on larger screens */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-400">
+                            <div className="flex items-center flex-wrap gap-2 sm:gap-4">
+                              <div className="flex items-center space-x-1 whitespace-nowrap">
+                                <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span>{formatDate(article.created_at)}</span>
+                              </div>
+                              <span className="hidden sm:inline">•</span>
+                              <div className="flex items-center space-x-1 whitespace-nowrap">
+                                <Clock className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span>{article.estimated_reading_time} min</span>
+                              </div>
                             </div>
-                            <span>•</span>
-                            <div className="flex items-center space-x-1">
-                              <Eye className="w-4 h-4" />
-                              <span>{article.word_count.toLocaleString()} words</span>
+
+                            <div className="flex items-center gap-2 sm:gap-4">
+                              <span className="hidden sm:inline">•</span>
+                              <span className="capitalize px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs whitespace-nowrap">
+                                {article.mode}
+                              </span>
                             </div>
-                            <span>•</span>
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-4 h-4" />
-                              <span>{article.estimated_reading_time} min</span>
-                            </div>
-                            <span>•</span>
-                            <span className="capitalize px-2 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs">
-                              {article.mode}
-                            </span>
-                            {article.audio && (
-                              <>
-                                <span>•</span>
-                                <span>{formatFileSize(article.audio.size)}</span>
-                              </>
-                            )}
                           </div>
 
-                          {/* URL */}
+                          {/* URL - Better mobile handling */}
                           <a
                             href={article.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-400 hover:text-purple-300 text-sm flex items-center space-x-1 truncate max-w-md group"
+                            className="text-purple-400 hover:text-purple-300 text-xs sm:text-sm flex items-start sm:items-center space-x-1 group break-all sm:break-normal line-clamp-1 sm:line-clamp-none"
                           >
-                            <span className="truncate">{article.url}</span>
-                            <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                            <span className="truncate flex-1 min-w-0">{article.url}</span>
+                            <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5 sm:mt-0" />
                           </a>
                         </div>
 
-                        {/* Play Button */}
+                        {/* Play Button - Full width on mobile, auto on desktop */}
                         {article.audio && (
-                          <Button
-                            onClick={() => handlePlayAudio(article)}
-                            variant="gradient"
-                            size="sm"
-                            className="ml-4 flex items-center space-x-2"
-                          >
-                            <Play className="w-4 h-4" />
-                            <span>Play</span>
-                          </Button>
+                          <div className="w-full sm:w-auto">
+                            <Button
+                              onClick={() => handlePlayAudio(article)}
+                              variant="gradient"
+                              size="sm"
+                              className="w-full sm:w-auto flex items-center justify-center space-x-2 py-2.5 sm:py-2 px-4 sm:px-3 text-sm font-medium min-w-[80px] touch-manipulation"
+                            >
+                              <Play className="w-4 h-4 flex-shrink-0" />
+                              <span>Play</span>
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </motion.div>

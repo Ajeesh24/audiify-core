@@ -160,4 +160,156 @@
       transform: translateX(100%);
     }
   }
+
+  /* Responsive typography using clamp */
+  .text-fluid-xs {
+    font-size: clamp(0.75rem, 2vw, 0.875rem);
+  }
+
+  .text-fluid-sm {
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+  }
+
+  .text-fluid-base {
+    font-size: clamp(1rem, 3vw, 1.125rem);
+  }
+
+  .text-fluid-lg {
+    font-size: clamp(1.125rem, 3.5vw, 1.25rem);
+  }
+
+  .text-fluid-xl {
+    font-size: clamp(1.25rem, 4vw, 1.5rem);
+  }
+
+  .text-fluid-2xl {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+  }
+
+  .text-fluid-3xl {
+    font-size: clamp(1.875rem, 6vw, 2.5rem);
+  }
+
+  .text-fluid-4xl {
+    font-size: clamp(2rem, 7vw, 3rem);
+  }
+
+  /* Fluid spacing */
+  .space-fluid-xs {
+    margin: clamp(0.25rem, 1vw, 0.5rem);
+  }
+
+  .space-fluid-sm {
+    margin: clamp(0.5rem, 2vw, 1rem);
+  }
+
+  .space-fluid-md {
+    margin: clamp(1rem, 3vw, 1.5rem);
+  }
+
+  .space-fluid-lg {
+    margin: clamp(1.5rem, 4vw, 2rem);
+  }
+
+  .space-fluid-xl {
+    margin: clamp(2rem, 5vw, 3rem);
+  }
+
+  /* Safe area support for mobile devices */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .safe-area-all {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Touch target improvements for mobile */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improved focus states for accessibility */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900;
+  }
+
+  /* Container queries support (when available) */
+  @supports (container-type: inline-size) {
+    .container-responsive {
+      container-type: inline-size;
+    }
+
+    @container (min-width: 320px) {
+      .cq-sm\:text-sm {
+        font-size: 0.875rem;
+      }
+    }
+
+    @container (min-width: 768px) {
+      .cq-md\:text-base {
+        font-size: 1rem;
+      }
+    }
+  }
+
+  /* Improved mobile tap targets */
+  @media (pointer: coarse) {
+    button,
+    input,
+    select,
+    textarea,
+    [role="button"],
+    [role="link"] {
+      min-height: 44px;
+      touch-action: manipulation;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .glass {
+      @apply bg-slate-800 border-slate-600;
+    }
+
+    .text-slate-400 {
+      @apply text-slate-300;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Dark mode improvements */
+  @media (prefers-color-scheme: dark) {
+    /* Ensure proper contrast in dark mode */
+    .bg-slate-900\/50 {
+      @apply bg-slate-900/60;
+    }
+  }
 }

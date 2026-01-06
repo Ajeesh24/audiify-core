@@ -251,16 +251,18 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
       className="w-full"
     >
       <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           {/* Audio element */}
           <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
           {/* Title */}
           {title && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-white truncate">{title}</h3>
+            <div className="mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-white leading-tight line-clamp-2 sm:line-clamp-1">
+                {title}
+              </h3>
               {mode && (
-                <p className="text-sm text-slate-400 capitalize">
+                <p className="text-xs sm:text-sm text-slate-400 capitalize mt-1">
                   {mode === 'summary' ? 'AI Summary' : 'Full Article'}
                 </p>
               )}
@@ -268,10 +270,10 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
           )}
 
           {/* Progress bar */}
-          <div className="mb-4">
+          <div className="mb-4 sm:mb-4">
             <div
               ref={progressRef}
-              className="w-full h-2 bg-slate-700 rounded-full cursor-pointer"
+              className="w-full h-2 bg-slate-700 rounded-full cursor-pointer touch-manipulation"
               onClick={handleProgressClick}
             >
               <motion.div
@@ -282,22 +284,22 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 transition={{ type: "spring", stiffness: 400, damping: 40 }}
               />
             </div>
-            <div className="flex justify-between text-xs text-slate-400 mt-1">
+            <div className="flex justify-between text-xs text-slate-400 mt-1 sm:mt-2">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-0 sm:justify-between">
             {/* Main controls */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3 sm:space-x-4 order-1">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={skipBackward}
                 disabled={isLoading}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white w-10 h-10 sm:w-auto sm:h-auto touch-manipulation"
               >
                 <SkipBack className="w-5 h-5" />
               </Button>
@@ -307,7 +309,7 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 size="icon"
                 onClick={togglePlay}
                 disabled={isLoading}
-                className="w-12 h-12"
+                className="w-12 h-12 sm:w-12 sm:h-12 touch-manipulation"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -323,22 +325,22 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 size="icon"
                 onClick={skipForward}
                 disabled={isLoading}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white w-10 h-10 sm:w-auto sm:h-auto touch-manipulation"
               >
                 <SkipForward className="w-5 h-5" />
               </Button>
             </div>
 
-            {/* Volume and Speed controls */}
-            <div className="flex items-center space-x-4">
+            {/* Volume and Speed controls - Stack on mobile */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto order-2">
               {/* Speed Control */}
               <div className="flex items-center space-x-2">
-                <span className="text-slate-400 text-sm whitespace-nowrap">Speed</span>
+                <span className="text-slate-400 text-xs sm:text-sm whitespace-nowrap">Speed</span>
                 <div className="relative">
                   <select
                     value={playbackSpeed}
                     onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                    className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 min-w-[65px]"
+                    className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 sm:px-3 sm:py-1 text-xs sm:text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 min-w-[60px] sm:min-w-[65px] touch-manipulation"
                   >
                     {speedOptions.map((speed) => (
                       <option key={speed} value={speed} className="bg-slate-800">
@@ -355,7 +357,7 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                   variant="ghost"
                   size="icon"
                   onClick={toggleMute}
-                  className="text-slate-400 hover:text-white"
+                  className="text-slate-400 hover:text-white w-8 h-8 sm:w-auto sm:h-auto touch-manipulation"
                 >
                   {isMuted ? (
                     <VolumeX className="w-4 h-4" />
@@ -370,21 +372,11 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                   step="0.1"
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
-                  className="w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                  className="w-16 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer slider touch-manipulation"
                 />
               </div>
             </div>
           </div>
-
-          {/* Content preview (optional) */}
-          {content && (
-            <div className="mt-4 p-4 bg-slate-800/50 rounded-lg max-h-32 overflow-y-auto">
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {content.substring(0, 200)}
-                {content.length > 200 && '...'}
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 
