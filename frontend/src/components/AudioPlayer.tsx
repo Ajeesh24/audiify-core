@@ -299,10 +299,7 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 disabled={isLoading}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
-                <div className="relative">
-                  <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
-                  <span className="absolute -bottom-0.5 -right-0.5 text-[10px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">10</span>
-                </div>
+                <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
               </button>
 
               <Button
@@ -326,10 +323,7 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 disabled={isLoading}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
-                <div className="relative">
-                  <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
-                  <span className="absolute -bottom-0.5 -left-0.5 text-[10px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">10</span>
-                </div>
+                <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
               </button>
             </div>
 
