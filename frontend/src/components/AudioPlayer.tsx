@@ -37,6 +37,23 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
       url: audio.url,
       storage: audio.storage
     });
+
+    // Test the URL directly
+    console.log('🔗 Full Audio URL:', audioUrl);
+    console.log('🧪 Testing URL accessibility...');
+
+    fetch(audioUrl, { method: 'HEAD' })
+      .then(response => {
+        console.log('✅ URL Test Result:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length')
+        });
+      })
+      .catch(error => {
+        console.error('❌ URL Test Failed:', error);
+      });
   }, [audio, audioUrl]);
 
   useEffect(() => {
