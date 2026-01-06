@@ -21,8 +21,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.0.0",
-    "@aws-amplify/auth": "^6.0.0",
-    "@aws-amplify/core": "^6.0.0"
+    "aws-amplify": "^6.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

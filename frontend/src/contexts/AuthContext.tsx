@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Amplify } from '@aws-amplify/core';
+import { Amplify } from 'aws-amplify';
 import {
   signUp,
   signIn,
@@ -8,9 +8,8 @@ import {
   fetchAuthSession,
   confirmSignUp,
   resendSignUpCode,
-  AuthUser,
-  AuthTokens
-} from '@aws-amplify/auth';
+  type AuthUser
+} from 'aws-amplify/auth';
 import { getRuntimeAmplifyConfig, isCognitoConfigured, isDevelopmentMode } from '../config/amplify';
 
 // Types
