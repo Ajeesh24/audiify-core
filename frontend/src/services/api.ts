@@ -42,15 +42,32 @@ apiClient.interceptors.request.use(async (config) => {
 
   // Add authentication header if token is available
   if (getAuthToken) {
+    console.log('🔍 Token getter function is available, attempting to get token...');
     try {
       const token = await getAuthToken();
+      console.log('🎫 Token retrieval result:', {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token?.substring(0, 20) + '...'
+      });
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('✅ Authorization header added to request');
+      } else {
+        console.warn('⚠️ No token available - request will be unauthorized');
       }
     } catch (error) {
-      console.warn('Failed to get auth token:', error);
+      console.error('❌ Failed to get auth token:', error);
     }
+  } else {
+    console.warn('⚠️ No token getter function available');
   }
+
+  console.log('📤 Final request headers:', {
+    Authorization: config.headers.Authorization ? 'Bearer [TOKEN]' : 'NOT SET',
+    'Content-Type': config.headers['Content-Type']
+  });
 
   return config;
 });

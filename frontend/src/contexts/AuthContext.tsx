@@ -107,10 +107,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
+      console.log('🔍 Fetching auth session...');
       const session = await fetchAuthSession();
-      return session.tokens?.accessToken?.toString() || null;
+      console.log('📋 Session object:', {
+        tokens: !!session.tokens,
+        accessToken: !!session.tokens?.accessToken,
+        tokenString: session.tokens?.accessToken?.toString()?.substring(0, 50) + '...'
+      });
+
+      const token = session.tokens?.accessToken?.toString() || null;
+      console.log('🎫 Access token retrieved:', token ? '✅ SUCCESS' : '❌ FAILED');
+      return token;
     } catch (error) {
-      console.error('Failed to get access token:', error);
+      console.error('❌ Failed to get access token:', error);
       return null;
     }
   };
