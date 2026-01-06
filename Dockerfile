@@ -1,9 +1,12 @@
-# Lambda-optimized Dockerfile for Audifyy Backend
+# Lambda-optimized Dockerfile for Audifyy Backend with UV for faster builds
 FROM public.ecr.aws/lambda/python:3.11
 
 # Set environment variables for Lambda
 ENV PYTHONPATH=/var/task
 ENV AWS_LAMBDA_FUNCTION_NAME=audifyy-backend
+
+# Install UV first for much faster Python package management
+RUN pip install --no-cache-dir uv
 
 # Install system dependencies required for our application
 RUN yum update -y && \
@@ -36,12 +39,11 @@ RUN yum update -y && \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy requirements and install Python dependencies
+# Copy requirements and install Python dependencies with UV (much faster than pip)
 COPY backend/requirements.txt ${LAMBDA_TASK_ROOT}/
 
-# Upgrade pip and install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with UV for 10x faster builds
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # Set Playwright environment variables for runtime browser installation
 ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
