@@ -2,10 +2,11 @@ import os
 import jwt
 import json
 import httpx
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from fastapi import HTTPException, status
 import logging
-from functools import lru_cache
+import asyncio
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class CognitoJWTVerifier:
 
     def __init__(self):
         """Initialize Cognito JWT verifier."""
-        self.region = os.environ.get('COGNITO_REGION', 'ap-southeast-1')
+        self.region = os.environ.get('COGNITO_REGION', 'ap-southeast-2')
         self.user_pool_id = os.environ.get('COGNITO_USER_POOL_ID')
         self.client_id = os.environ.get('COGNITO_CLIENT_ID')
 
@@ -26,26 +27,35 @@ class CognitoJWTVerifier:
 
         # Cognito public keys URL
         self.jwks_url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
-        self._public_keys = None
 
-    @lru_cache(maxsize=1)
+        # Manual async caching
+        self._public_keys = None
+        self._cache_timestamp = None
+        self._cache_duration = timedelta(hours=1)  # Cache for 1 hour
+        self._lock = asyncio.Lock()
+
     async def get_public_keys(self) -> Dict[str, Any]:
         """Get and cache Cognito public keys for JWT verification."""
-        if self._public_keys:
-            return self._public_keys
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(self.jwks_url)
-                response.raise_for_status()
-                self._public_keys = response.json()
+        async with self._lock:
+            # Check if cache is still valid
+            now = datetime.now()
+            if (self._public_keys and self._cache_timestamp and
+                (now - self._cache_timestamp) < self._cache_duration):
                 return self._public_keys
-        except Exception as e:
-            logger.error(f"Failed to fetch Cognito public keys: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to verify authentication"
-            )
+
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(self.jwks_url)
+                    response.raise_for_status()
+                    self._public_keys = response.json()
+                    self._cache_timestamp = now
+                    return self._public_keys
+            except Exception as e:
+                logger.error(f"Failed to fetch Cognito public keys: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to verify authentication"
+                )
 
     async def verify_token(self, token: str) -> Dict[str, Any]:
         """

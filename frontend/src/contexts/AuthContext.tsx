@@ -191,8 +191,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await refreshAuth();
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign in failed:', error);
+
+      // Handle specific Amplify Auth errors
+      if (error.name === 'UserAlreadyAuthenticatedError' ||
+          error.message?.includes('There is already a signed in user')) {
+        console.log('🔄 User already signed in, clearing session and retrying...');
+
+        // Clear the existing session and retry
+        await handleAuthError();
+
+        // Wait a moment for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Retry the sign in
+        try {
+          const retryResult = await signIn({
+            username: email,
+            password
+          });
+          await refreshAuth();
+          return retryResult;
+        } catch (retryError) {
+          console.error('Retry sign in also failed:', retryError);
+          throw retryError;
+        }
+      }
+
       throw error;
     }
   };
@@ -203,13 +229,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      await signOut();
+      // Force global sign out to clear all sessions
+      await signOut({ global: true });
+
+      // Clear local user state
       setUser(null);
+
+      console.log('✅ User signed out successfully');
     } catch (error) {
       console.error('Sign out failed:', error);
-      // Still clear user state even if sign out fails
+
+      // Even if sign out fails, clear local state
       setUser(null);
+
+      // Force clear any remaining auth state by reloading the page
+      // This ensures complete session cleanup
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
+  };
+
+  // Add method to handle authentication errors (like expired tokens)
+  const handleAuthError = async () => {
+    console.log('🔄 Handling authentication error - clearing session');
+    try {
+      await signOut({ global: true });
+    } catch (error) {
+      console.warn('Failed to sign out during auth error handling:', error);
+    }
+    setUser(null);
   };
 
   const handleConfirmSignUp = async (email: string, confirmationCode: string) => {
