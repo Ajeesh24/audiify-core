@@ -171,13 +171,13 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
   const skipBackward = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = Math.max(0, audio.currentTime - 15);
+    audio.currentTime = Math.max(0, audio.currentTime - 10);
   };
 
   const skipForward = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
+    audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
   };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -294,41 +294,39 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
           <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-0 sm:justify-between">
             {/* Main controls */}
             <div className="flex items-center space-x-3 sm:space-x-4 order-1">
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
                 onClick={skipBackward}
                 disabled={isLoading}
-                className="text-slate-400 hover:text-white w-10 h-10 sm:w-auto sm:h-auto touch-manipulation"
+                className="relative group w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50"
               >
-                <SkipBack className="w-5 h-5" />
-              </Button>
+                <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-white transition-colors" />
+                <span className="absolute -bottom-1 text-xs text-slate-500 group-hover:text-slate-300 font-medium">10</span>
+              </button>
 
               <Button
                 variant="gradient"
                 size="icon"
                 onClick={togglePlay}
                 disabled={isLoading}
-                className="w-12 h-12 sm:w-12 sm:h-12 touch-manipulation"
+                className="w-12 h-12 sm:w-14 sm:h-14 touch-manipulation"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isPlaying ? (
-                  <Pause className="w-6 h-6" />
+                  <Pause className="w-6 h-6 sm:w-7 sm:h-7" />
                 ) : (
-                  <Play className="w-6 h-6 ml-0.5" />
+                  <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
                 )}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
                 onClick={skipForward}
                 disabled={isLoading}
-                className="text-slate-400 hover:text-white w-10 h-10 sm:w-auto sm:h-auto touch-manipulation"
+                className="relative group w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50"
               >
-                <SkipForward className="w-5 h-5" />
-              </Button>
+                <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-white transition-colors" />
+                <span className="absolute -bottom-1 text-xs text-slate-500 group-hover:text-slate-300 font-medium">10</span>
+              </button>
             </div>
 
             {/* Volume and Speed controls - Stack on mobile */}

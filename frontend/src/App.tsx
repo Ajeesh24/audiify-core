@@ -250,7 +250,7 @@ function AuthenticatedApp() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8"
+          className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8"
         >
           <div className="inline-flex items-center gap-2 sm:gap-3">
             <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl sm:rounded-2xl shadow-lg shadow-purple-500/25">
@@ -266,7 +266,7 @@ function AuthenticatedApp() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 sm:justify-end">
+          <div className="flex items-start justify-end">
             <Button
               onClick={signOut}
               variant="outline"

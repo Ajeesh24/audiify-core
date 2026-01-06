@@ -116,17 +116,17 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md mx-auto"
       >
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+        <div className="bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">
             Verify Your Email
           </h2>
-          <p className="text-gray-600 text-center mb-6">
+          <p className="text-slate-400 text-center mb-6 text-sm sm:text-base">
             We sent a confirmation code to {formData.email}
           </p>
 
-          <form onSubmit={handleConfirmation} className="space-y-4">
+          <form onSubmit={handleConfirmation} className="space-y-4 sm:space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
                 Confirmation Code
               </label>
               <input
@@ -135,13 +135,13 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                 value={formData.confirmationCode}
                 onChange={handleInputChange}
                 placeholder="Enter 6-digit code"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder:text-slate-500 touch-manipulation"
                 maxLength={6}
               />
             </div>
 
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+              <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
                 {error}
               </div>
             )}
@@ -149,7 +149,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -165,7 +165,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
               <button
                 type="button"
                 onClick={handleResendCode}
-                className="text-sm text-blue-600 hover:text-blue-700"
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
                 disabled={loading}
               >
                 Didn't receive the code? Resend
@@ -176,7 +176,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
               <button
                 type="button"
                 onClick={() => setIsConfirmation(false)}
-                className="text-sm text-gray-600 hover:text-gray-700"
+                className="text-sm text-slate-400 hover:text-slate-300 transition-colors"
               >
                 Back to sign up
               </button>
@@ -193,74 +193,74 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-md mx-auto"
     >
-      <div className="bg-white rounded-2xl shadow-xl p-8">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+      <div className="bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">
           {isSignUp ? 'Create Account' : 'Welcome Back'}
         </h2>
-        <p className="text-gray-600 text-center mb-6">
+        <p className="text-slate-400 text-center mb-6 text-sm sm:text-base">
           {isSignUp
             ? 'Sign up to start converting articles to audio'
             : 'Sign in to access your audio library'
           }
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {isSignUp && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
                 Name (optional)
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <User className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
                   placeholder="Your name"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+                  className="w-full pl-10 sm:pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder:text-slate-500 touch-manipulation"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Email
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Mail className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 placeholder="your@email.com"
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+                className="w-full pl-10 sm:pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder:text-slate-500 touch-manipulation"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
               Password
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Lock className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+                className="w-full pl-10 sm:pl-11 pr-12 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder:text-slate-500 touch-manipulation"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition-colors touch-manipulation"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -269,18 +269,18 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
 
           {isSignUp && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
                 Confirm Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-3 h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white placeholder:text-gray-500"
+                  className="w-full pl-10 sm:pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 text-white placeholder:text-slate-500 touch-manipulation"
                   required
                 />
               </div>
@@ -288,7 +288,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
           )}
 
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
               {error}
             </div>
           )}
@@ -296,7 +296,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation shadow-lg shadow-purple-500/25"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -312,7 +312,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
             >
               {isSignUp
                 ? 'Already have an account? Sign in'
@@ -322,7 +322,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
           </div>
 
           {isSignUp && (
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-slate-500 text-center leading-relaxed">
               By creating an account, you agree to our Terms of Service and Privacy Policy
             </p>
           )}
