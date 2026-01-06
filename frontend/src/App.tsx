@@ -13,7 +13,7 @@ import { UserDashboard } from '@/components/UserDashboard';
 import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
 
 function AuthenticatedApp() {
-  const { user, loading, isAuthenticated, getAccessToken, signOut } = useAuth();
+  const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -26,8 +26,10 @@ function AuthenticatedApp() {
 
   // Set up auth token getter for API requests
   useEffect(() => {
-    setAuthTokenGetter(getAccessToken);
-  }, [getAccessToken]);
+    if (isConfigured) {
+      setAuthTokenGetter(getAccessToken);
+    }
+  }, [getAccessToken, isConfigured]);
 
   const processArticle = async () => {
     if (!url.trim()) return;
@@ -123,6 +125,81 @@ function AuthenticatedApp() {
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show development mode message when Cognito isn't configured
+  if (!isConfigured && isDevelopment) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-4">
+        {/* Ambient background effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 w-full max-w-2xl text-center">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
+                <Headphones className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                Audifyy
+              </h1>
+            </div>
+          </motion.div>
+
+          {/* Development Mode Message */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl rounded-2xl p-8 shadow-2xl"
+          >
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-500/20 rounded-full mb-4">
+                <Sparkles className="w-8 h-8 text-yellow-400" />
+              </div>
+
+              <h2 className="text-2xl font-bold text-white mb-2">
+                Development Mode
+              </h2>
+
+              <p className="text-slate-400 text-lg mb-6">
+                Cognito authentication is not configured. This is expected during local development.
+              </p>
+
+              <div className="bg-slate-800/50 rounded-xl p-6 text-left space-y-3">
+                <h3 className="font-semibold text-white mb-3">To enable authentication:</h3>
+                <div className="space-y-2 text-sm text-slate-300">
+                  <p>1. <span className="font-medium text-white">Deploy the infrastructure:</span></p>
+                  <code className="block bg-slate-700/50 px-3 py-2 rounded text-xs font-mono text-green-400">
+                    git push origin main  # Triggers deployment
+                  </code>
+
+                  <p>2. <span className="font-medium text-white">Set up GitHub Secrets:</span></p>
+                  <ul className="list-disc list-inside space-y-1 text-xs text-slate-400 ml-4">
+                    <li>OPENAI_API_KEY</li>
+                    <li>AWS_GITHUB_TRUST_ROLE</li>
+                    <li>AWS_DEPLOYMENT_ROLE</li>
+                  </ul>
+
+                  <p>3. <span className="font-medium text-white">After deployment:</span> Authentication will work automatically!</p>
+                </div>
+              </div>
+
+              <p className="text-slate-500 text-sm">
+                For now, you can preview the UI design but authentication features are disabled.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </div>
     );

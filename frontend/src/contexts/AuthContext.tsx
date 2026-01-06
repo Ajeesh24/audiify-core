@@ -11,11 +11,7 @@ import {
   AuthUser,
   AuthTokens
 } from '@aws-amplify/auth';
-import { getRuntimeAmplifyConfig } from '../config/amplify';
-
-// Configure Amplify
-const config = getRuntimeAmplifyConfig();
-Amplify.configure(config);
+import { getRuntimeAmplifyConfig, isCognitoConfigured, isDevelopmentMode } from '../config/amplify';
 
 // Types
 export interface User {
@@ -38,6 +34,8 @@ export interface AuthContextType {
   resendSignUpCode: (email: string) => Promise<any>;
   getAccessToken: () => Promise<string | null>;
   refreshAuth: () => Promise<void>;
+  isConfigured: boolean;
+  isDevelopment: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,6 +55,40 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [isDevelopment, setIsDevelopment] = useState(false);
+
+  // Initialize Amplify configuration
+  useEffect(() => {
+    const initializeAuth = () => {
+      try {
+        const configured = isCognitoConfigured();
+        const devMode = isDevelopmentMode();
+
+        setIsConfigured(configured);
+        setIsDevelopment(devMode);
+
+        if (configured) {
+          const config = getRuntimeAmplifyConfig();
+          console.log('🔐 Initializing Amplify with Cognito configuration:', {
+            userPoolId: config.Auth.Cognito.userPoolId,
+            region: config.Auth.Cognito.region,
+            configured: true
+          });
+          Amplify.configure(config);
+        } else {
+          console.log('⚠️ Cognito not configured - running in development mode');
+        }
+      } catch (error) {
+        console.error('Failed to initialize Amplify:', error);
+        setIsConfigured(false);
+        setIsDevelopment(true);
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
+  }, []);
 
   const convertAuthUserToUser = (authUser: AuthUser): User => {
     return {
@@ -70,6 +102,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const getAccessToken = async (): Promise<string | null> => {
+    if (!isConfigured) {
+      console.warn('Cognito not configured - cannot get access token');
+      return null;
+    }
+
     try {
       const session = await fetchAuthSession();
       return session.tokens?.accessToken?.toString() || null;
@@ -80,6 +117,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const refreshAuth = async () => {
+    if (!isConfigured) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const authUser = await getCurrentUser();
       const convertedUser = convertAuthUserToUser(authUser);
@@ -112,6 +154,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const handleSignUp = async (email: string, password: string, options?: any) => {
+    if (!isConfigured) {
+      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
+    }
+
     try {
       const result = await signUp({
         username: email,
@@ -127,6 +173,75 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return result;
     } catch (error) {
       console.error('Sign up failed:', error);
+      throw error;
+    }
+  };
+
+  const handleSignIn = async (email: string, password: string) => {
+    if (!isConfigured) {
+      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
+    }
+
+    try {
+      const result = await signIn({
+        username: email,
+        password
+      });
+
+      // Refresh user data after sign in
+      await refreshAuth();
+
+      return result;
+    } catch (error) {
+      console.error('Sign in failed:', error);
+      throw error;
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!isConfigured) {
+      return; // Nothing to sign out from
+    }
+
+    try {
+      await signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+      // Still clear user state even if sign out fails
+      setUser(null);
+    }
+  };
+
+  const handleConfirmSignUp = async (email: string, confirmationCode: string) => {
+    if (!isConfigured) {
+      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
+    }
+
+    try {
+      const result = await confirmSignUp({
+        username: email,
+        confirmationCode
+      });
+      return result;
+    } catch (error) {
+      console.error('Confirm sign up failed:', error);
+      throw error;
+    }
+  };
+
+  const handleResendSignUpCode = async (email: string) => {
+    if (!isConfigured) {
+      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
+    }
+
+    try {
+      const result = await resendSignUpCode({
+        username: email
+      });
+      return result;
+    } catch (error) {
+      console.error('Resend code failed:', error);
       throw error;
     }
   };
@@ -173,6 +288,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const handleResendSignUpCode = async (email: string) => {
+    if (!isConfigured) {
+      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
+    }
+
     try {
       const result = await resendSignUpCode({
         username: email
@@ -194,7 +313,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     confirmSignUp: handleConfirmSignUp,
     resendSignUpCode: handleResendSignUpCode,
     getAccessToken,
-    refreshAuth
+    refreshAuth,
+    isConfigured,
+    isDevelopment,
   };
 
   return (

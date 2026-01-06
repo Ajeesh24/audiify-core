@@ -1,6 +1,14 @@
 // AWS Amplify configuration for Cognito authentication
 // This configuration will be populated by environment variables during build/deployment
 
+// Check if we have valid Cognito configuration
+const hasValidCognitoConfig = () => {
+  const userPoolId = (window as any).ENV?.VITE_COGNITO_USER_POOL_ID || import.meta.env.VITE_COGNITO_USER_POOL_ID;
+  const clientId = (window as any).ENV?.VITE_COGNITO_CLIENT_ID || import.meta.env.VITE_COGNITO_CLIENT_ID;
+
+  return !!(userPoolId && clientId && userPoolId !== '' && clientId !== '');
+};
+
 export const amplifyConfig = {
   Auth: {
     Cognito: {
@@ -10,7 +18,7 @@ export const amplifyConfig = {
       identityPoolId: import.meta.env.VITE_COGNITO_IDENTITY_POOL_ID || '',
 
       // AWS Region
-      region: import.meta.env.VITE_COGNITO_REGION || 'ap-southeast-1',
+      region: import.meta.env.VITE_COGNITO_REGION || 'ap-southeast-2',
 
       // Sign up configuration
       signUpVerificationMethod: 'code', // 'code' | 'link'
@@ -18,7 +26,7 @@ export const amplifyConfig = {
       // Login with
       loginWith: {
         oauth: {
-          domain: `${import.meta.env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain'}.auth.ap-southeast-1.amazoncognito.com`,
+          domain: `${import.meta.env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain'}.auth.ap-southeast-2.amazoncognito.com`,
           scopes: ['phone', 'email', 'openid', 'profile', 'aws.cognito.signin.user.admin'],
           redirectSignIn: [
             'http://localhost:3000/',
@@ -57,7 +65,7 @@ export const getRuntimeAmplifyConfig = () => {
             ...amplifyConfig.Auth.Cognito.loginWith,
             oauth: {
               ...amplifyConfig.Auth.Cognito.loginWith.oauth,
-              domain: `${(env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain')}.auth.${env.VITE_COGNITO_REGION || 'ap-southeast-1'}.amazoncognito.com`,
+              domain: `${(env.VITE_COGNITO_USER_POOL_ID?.split('_')[1] || 'your-domain')}.auth.${env.VITE_COGNITO_REGION || 'ap-southeast-2'}.amazoncognito.com`,
             }
           }
         }
@@ -66,4 +74,16 @@ export const getRuntimeAmplifyConfig = () => {
   }
 
   return amplifyConfig;
+};
+
+// Check if Cognito is properly configured
+export const isCognitoConfigured = hasValidCognitoConfig;
+
+// Development mode configuration
+export const isDevelopmentMode = () => {
+  return !hasValidCognitoConfig() && (
+    import.meta.env.DEV ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  );
 };
