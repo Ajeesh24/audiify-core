@@ -307,6 +307,21 @@ async def get_my_articles(
             # Only include completed jobs with results
             if job.get('status') == 'completed' and job.get('result'):
                 result = job['result']
+
+                # Generate fresh presigned URL for audio if it exists
+                audio_data = None
+                if result.get('audio'):
+                    audio_id = result.get('audio', {}).get('audio_id')
+                    if audio_id:
+                        # Generate presigned URL for this audio file
+                        audio_url = tts_service.get_audio_url(audio_id, user_id)
+                        audio_data = {
+                            'audio_id': audio_id,
+                            'size': result.get('audio', {}).get('size'),
+                            'storage': result.get('audio', {}).get('storage'),
+                            'url': audio_url  # Fresh presigned URL
+                        }
+
                 article_data = {
                     'job_id': job['job_id'],
                     'created_at': job['created_at'],
@@ -316,11 +331,7 @@ async def get_my_articles(
                     'word_count': result.get('article', {}).get('word_count', 0),
                     'estimated_reading_time': result.get('article', {}).get('estimated_reading_time', 0),
                     'mode': 'summary' if result.get('article', {}).get('summary') else 'full',
-                    'audio': {
-                        'audio_id': result.get('audio', {}).get('audio_id'),
-                        'size': result.get('audio', {}).get('size'),
-                        'storage': result.get('audio', {}).get('storage'),
-                    } if result.get('audio') else None
+                    'audio': audio_data
                 }
                 articles.append(article_data)
 

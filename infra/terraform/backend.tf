@@ -127,6 +127,23 @@ resource "aws_s3_bucket_public_access_block" "audio_storage" {
   restrict_public_buckets = true
 }
 
+# CORS configuration for audio storage to allow frontend access
+resource "aws_s3_bucket_cors_configuration" "audio_storage" {
+  bucket = aws_s3_bucket.audio_storage.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = [
+      "http://localhost:5173",                                    # Local development
+      "https://${aws_cloudfront_distribution.frontend.domain_name}",  # CloudFront distribution
+      var.domain_name != "" ? "https://${var.domain_name}" : ""   # Custom domain if configured
+    ]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "audio_storage" {
   bucket = aws_s3_bucket.audio_storage.id
 

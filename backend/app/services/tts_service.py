@@ -79,8 +79,12 @@ class TTSService:
                     self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
                     logger.info(f"Using cached audio from S3: {audio_id}")
 
-                    # Generate S3 URL
-                    s3_url = f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+                    # Generate presigned S3 URL with temporary authentication (valid for 1 hour)
+                    s3_url = self.s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
+                        ExpiresIn=3600  # 1 hour expiration
+                    )
 
                     metadata = {
                         "audio_id": audio_id,
@@ -156,8 +160,12 @@ class TTSService:
                         ContentDisposition=f"inline; filename={audio_filename}"
                     )
 
-                    # Generate S3 URL
-                    s3_url = f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+                    # Generate presigned S3 URL with temporary authentication (valid for 1 hour)
+                    s3_url = self.s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
+                        ExpiresIn=3600  # 1 hour expiration
+                    )
 
                     logger.info(f"Audio uploaded to S3: {s3_key} ({len(final_audio)} bytes)")
 
