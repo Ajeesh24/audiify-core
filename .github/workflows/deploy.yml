@@ -19,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
-        default: 'dev'
+        default: "dev"
         type: choice
         options:
           - dev
@@ -31,8 +31,8 @@ on:
 env:
   AWS_REGION: ap-southeast-2
   ECR_REPOSITORY: audifyy-lambda-backend
-  NODE_VERSION: '20'
-  PYTHON_VERSION: '3.11'
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.11"
 
 permissions:
   id-token: write
@@ -44,33 +44,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-    - name: Cache frontend dependencies
-      uses: actions/cache@v3
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('frontend/package.json') }}
+      - name: Cache frontend dependencies
+        uses: actions/cache@v3
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend/package.json') }}
 
-    - name: Install and build frontend
-      env:
-        VITE_API_URL: https://api.audifyy.com # Will be updated dynamically after backend deployment
-      run: |
-        cd frontend
-        npm install
-        npm run build
+      - name: Install and build frontend
+        env:
+          VITE_API_URL: https://api.audifyy.com # Will be updated dynamically after backend deployment
+        run: |
+          cd frontend
+          npm install
+          npm run build
 
-    - name: Upload frontend build
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/dist/
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist/
 
   # Deploy infrastructure and backend together
   deploy:
@@ -88,119 +88,115 @@ jobs:
       cognito-region: ${{ steps.tf-output.outputs.cognito_region }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4.0.2
-      with:
-        role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
-        role-session-name: "GitHubActions"
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Configure AWS deployment role
-      uses: aws-actions/configure-aws-credentials@v4.0.2
-      with:
-        role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
-        role-session-name: "GitHubActions"
-        aws-region: ${{ env.AWS_REGION }}
-        role-chaining: true
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Get image version from tfvars
-      id: get-version
-      run: |
-        IMAGE_TAG=$(grep 'image_tag' infra/terraform/environments/dev.tfvars | cut -d'"' -f2)
-        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        echo "Using image version: $IMAGE_TAG"
+      - name: Get image version from tfvars
+        id: get-version
+        run: |
+          IMAGE_TAG=$(grep 'image_tag' infra/terraform/environments/dev.tfvars | cut -d'"' -f2)
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Using image version: $IMAGE_TAG"
 
-    - name: Build and push Docker image with UV
-      env:
-        IMAGE_TAG: ${{ steps.get-version.outputs.image_tag }}
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      run: |
-        echo "🚀 Always building backend Docker image (condition temporarily removed)"
+      - name: Build and push Docker image with UV
+        env:
+          IMAGE_TAG: ${{ steps.get-version.outputs.image_tag }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        run: |
+          echo "🚀 Always building backend Docker image (condition temporarily removed)"
 
-        # Build Docker image with UV for faster builds
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          # Build Docker image with UV for faster builds
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
 
-        # Create ECR repository if it doesn't exist (Terraform will manage it going forward)
-        aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION >/dev/null 2>&1 || \
-        aws ecr create-repository \
-          --repository-name $ECR_REPOSITORY \
-          --image-scanning-configuration scanOnPush=true \
-          --region $AWS_REGION
+          # Create ECR repository if it doesn't exist (Terraform will manage it going forward)
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION >/dev/null 2>&1 || \
+          aws ecr create-repository \
+            --repository-name $ECR_REPOSITORY \
+            --image-scanning-configuration scanOnPush=true \
+            --region $AWS_REGION
 
-        # Push to ECR
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          # Push to ECR
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ~1.0
-        terraform_wrapper: false
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.0
+          terraform_wrapper: false
 
-    - name: Deploy infrastructure
-      run: |
-        cd infra/terraform
-        terraform init
+      - name: Deploy infrastructure
+        run: |
+          cd infra/terraform
+          terraform init
 
-        # Display deployment strategy
-        echo "🚀 Deploying with NEW backend image (always building for critical fixes)"
-        echo "   Backend includes JWT authentication fixes and UV for faster builds"
+          # Build terraform plan with required variables
+          TERRAFORM_VARS="-var=openai_api_key=${{ secrets.OPENAI_API_KEY }}"
 
-        # Build terraform plan with required variables
-        TERRAFORM_VARS="-var=openai_api_key=${{ secrets.OPENAI_API_KEY }}"
+          # Add optional social login variables if secrets are available
+          if [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}"
+          fi
 
-        # Add optional social login variables if secrets are available
-        if [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}"
-        fi
+          if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          fi
 
-        if [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
-        fi
+          if [ -n "${{ secrets.APPLE_CLIENT_ID }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_client_id=${{ secrets.APPLE_CLIENT_ID }}"
+          fi
 
-        if [ -n "${{ secrets.APPLE_CLIENT_ID }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_client_id=${{ secrets.APPLE_CLIENT_ID }}"
-        fi
+          if [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_team_id=${{ secrets.APPLE_TEAM_ID }}"
+          fi
 
-        if [ -n "${{ secrets.APPLE_TEAM_ID }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_team_id=${{ secrets.APPLE_TEAM_ID }}"
-        fi
+          if [ -n "${{ secrets.APPLE_KEY_ID }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_key_id=${{ secrets.APPLE_KEY_ID }}"
+          fi
 
-        if [ -n "${{ secrets.APPLE_KEY_ID }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_key_id=${{ secrets.APPLE_KEY_ID }}"
-        fi
+          if [ -n "${{ secrets.APPLE_PRIVATE_KEY }}" ]; then
+            TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_private_key=${{ secrets.APPLE_PRIVATE_KEY }}"
+          fi
 
-        if [ -n "${{ secrets.APPLE_PRIVATE_KEY }}" ]; then
-          TERRAFORM_VARS="$TERRAFORM_VARS -var=apple_private_key=${{ secrets.APPLE_PRIVATE_KEY }}"
-        fi
+          echo "🔧 Planning Terraform deployment with authentication configuration..."
+          terraform plan $TERRAFORM_VARS -var-file="environments/dev.tfvars" -out=tfplan
 
-        echo "🔧 Planning Terraform deployment with authentication configuration..."
-        terraform plan $TERRAFORM_VARS -var-file="environments/dev.tfvars" -out=tfplan
+          echo "🚀 Applying Terraform deployment..."
+          terraform apply tfplan
 
-        echo "🚀 Applying Terraform deployment..."
-        terraform apply tfplan
-
-    - name: Get Terraform outputs
-      id: tf-output
-      run: |
-        cd infra/terraform
-        echo "backend_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
-        echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
-        echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
-        echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
-        echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
-        echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
-        echo "cognito_identity_pool_id=$(terraform output -raw cognito_identity_pool_id)" >> $GITHUB_OUTPUT
-        echo "cognito_region=$(terraform output -raw cognito_region)" >> $GITHUB_OUTPUT
+      - name: Get Terraform outputs
+        id: tf-output
+        run: |
+          cd infra/terraform
+          echo "backend_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
+          echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
+          echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
+          echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> $GITHUB_OUTPUT
+          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> $GITHUB_OUTPUT
+          echo "cognito_identity_pool_id=$(terraform output -raw cognito_identity_pool_id)" >> $GITHUB_OUTPUT
+          echo "cognito_region=$(terraform output -raw cognito_region)" >> $GITHUB_OUTPUT
 
   # Deploy frontend with correct backend URL
   deploy-frontend:
@@ -208,65 +204,65 @@ jobs:
     needs: deploy
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Download frontend build
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/dist/
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist/
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4.0.2
-      with:
-        role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
-        role-session-name: "GitHubActions"
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Configure AWS deployment role
-      uses: aws-actions/configure-aws-credentials@v4.0.2
-      with:
-        role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
-        role-session-name: "GitHubActions"
-        aws-region: ${{ env.AWS_REGION }}
-        role-chaining: true
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
-    - name: Update frontend config with runtime environment
-      run: |
-        BACKEND_URL="${{ needs.deploy.outputs.backend-url }}/api"
-        COGNITO_USER_POOL_ID="${{ needs.deploy.outputs.cognito-user-pool-id }}"
-        COGNITO_CLIENT_ID="${{ needs.deploy.outputs.cognito-client-id }}"
-        COGNITO_IDENTITY_POOL_ID="${{ needs.deploy.outputs.cognito-identity-pool-id }}"
-        COGNITO_REGION="${{ needs.deploy.outputs.cognito-region }}"
+      - name: Update frontend config with runtime environment
+        run: |
+          BACKEND_URL="${{ needs.deploy.outputs.backend-url }}/api"
+          COGNITO_USER_POOL_ID="${{ needs.deploy.outputs.cognito-user-pool-id }}"
+          COGNITO_CLIENT_ID="${{ needs.deploy.outputs.cognito-client-id }}"
+          COGNITO_IDENTITY_POOL_ID="${{ needs.deploy.outputs.cognito-identity-pool-id }}"
+          COGNITO_REGION="${{ needs.deploy.outputs.cognito-region }}"
 
-        # Create runtime environment configuration
-        cat > frontend/dist/env.js << EOF
-        window.ENV = {
-          VITE_API_URL: '$BACKEND_URL',
-          VITE_COGNITO_USER_POOL_ID: '$COGNITO_USER_POOL_ID',
-          VITE_COGNITO_CLIENT_ID: '$COGNITO_CLIENT_ID',
-          VITE_COGNITO_IDENTITY_POOL_ID: '$COGNITO_IDENTITY_POOL_ID',
-          VITE_COGNITO_REGION: '$COGNITO_REGION'
-        };
-        EOF
+          # Create runtime environment configuration
+          cat > frontend/dist/env.js << EOF
+          window.ENV = {
+            VITE_API_URL: '$BACKEND_URL',
+            VITE_COGNITO_USER_POOL_ID: '$COGNITO_USER_POOL_ID',
+            VITE_COGNITO_CLIENT_ID: '$COGNITO_CLIENT_ID',
+            VITE_COGNITO_IDENTITY_POOL_ID: '$COGNITO_IDENTITY_POOL_ID',
+            VITE_COGNITO_REGION: '$COGNITO_REGION'
+          };
+          EOF
 
-        echo "✅ Updated env.js with runtime configuration:"
-        echo "  API URL: $BACKEND_URL"
-        echo "  Cognito User Pool: $COGNITO_USER_POOL_ID"
-        echo "  Cognito Client: $COGNITO_CLIENT_ID"
-        echo "  Cognito Identity Pool: $COGNITO_IDENTITY_POOL_ID"
-        echo "  Cognito Region: $COGNITO_REGION"
+          echo "✅ Updated env.js with runtime configuration:"
+          echo "  API URL: $BACKEND_URL"
+          echo "  Cognito User Pool: $COGNITO_USER_POOL_ID"
+          echo "  Cognito Client: $COGNITO_CLIENT_ID"
+          echo "  Cognito Identity Pool: $COGNITO_IDENTITY_POOL_ID"
+          echo "  Cognito Region: $COGNITO_REGION"
 
-    - name: Deploy to S3 and invalidate CloudFront
-      run: |
-        # Upload to S3
-        aws s3 sync frontend/dist/ s3://${{ needs.deploy.outputs.frontend-bucket }} --delete
+      - name: Deploy to S3 and invalidate CloudFront
+        run: |
+          # Upload to S3
+          aws s3 sync frontend/dist/ s3://${{ needs.deploy.outputs.frontend-bucket }} --delete
 
-        # Invalidate CloudFront cache
-        aws cloudfront create-invalidation \
-          --distribution-id ${{ needs.deploy.outputs.cloudfront-distribution-id }} \
-          --paths "/*"
+          # Invalidate CloudFront cache
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ needs.deploy.outputs.cloudfront-distribution-id }} \
+            --paths "/*"
 
   # Health check
   health-check:
@@ -274,57 +270,57 @@ jobs:
     needs: [deploy, deploy-frontend]
 
     steps:
-    - name: Wait for deployment
-      run: sleep 30
+      - name: Wait for deployment
+        run: sleep 30
 
-    - name: Test backend health
-      run: |
-        BACKEND_URL="${{ needs.deploy.outputs.backend-url }}"
-        echo "Testing backend: $BACKEND_URL/api/health"
+      - name: Test backend health
+        run: |
+          BACKEND_URL="${{ needs.deploy.outputs.backend-url }}"
+          echo "Testing backend: $BACKEND_URL/api/health"
 
-        # Test with retries for Lambda cold start
-        for i in {1..5}; do
-          if curl -f "$BACKEND_URL/api/health" --max-time 60; then
-            echo "✅ Backend health check passed on attempt $i"
-            break
+          # Test with retries for Lambda cold start
+          for i in {1..5}; do
+            if curl -f "$BACKEND_URL/api/health" --max-time 60; then
+              echo "✅ Backend health check passed on attempt $i"
+              break
+            else
+              echo "❌ Backend health check failed on attempt $i, retrying..."
+              sleep 10
+            fi
+          done
+
+      - name: Test frontend
+        run: |
+          FRONTEND_URL="https://${{ needs.deploy.outputs.cloudfront-domain }}"
+          echo "Testing frontend: $FRONTEND_URL"
+
+          if curl -f "$FRONTEND_URL" --max-time 30; then
+            echo "✅ Frontend health check passed"
           else
-            echo "❌ Backend health check failed on attempt $i, retrying..."
-            sleep 10
+            echo "❌ Frontend health check failed"
+            exit 1
           fi
-        done
 
-    - name: Test frontend
-      run: |
-        FRONTEND_URL="https://${{ needs.deploy.outputs.cloudfront-domain }}"
-        echo "Testing frontend: $FRONTEND_URL"
-
-        if curl -f "$FRONTEND_URL" --max-time 30; then
-          echo "✅ Frontend health check passed"
-        else
-          echo "❌ Frontend health check failed"
-          exit 1
-        fi
-
-    - name: Deployment summary
-      run: |
-        echo "🚀 Deployment completed successfully!"
-        echo ""
-        echo "📊 **Deployment Summary:**"
-        echo "Frontend URL: https://${{ needs.deploy.outputs.cloudfront-domain }}"
-        echo "Backend API: ${{ needs.deploy.outputs.backend-url }}"
-        echo "S3 Bucket: ${{ needs.deploy.outputs.frontend-bucket }}"
-        echo "CloudFront Distribution: ${{ needs.deploy.outputs.cloudfront-distribution-id }}"
-        echo ""
-        echo "🔐 **Authentication Configuration:**"
-        echo "Cognito User Pool: ${{ needs.deploy.outputs.cognito-user-pool-id }}"
-        echo "Cognito Client: ${{ needs.deploy.outputs.cognito-client-id }}"
-        echo "Cognito Identity Pool: ${{ needs.deploy.outputs.cognito-identity-pool-id }}"
-        echo "Region: ${{ needs.deploy.outputs.cognito-region }}"
-        echo ""
-        echo "🎉 **Authentication Features:**"
-        echo "✅ User registration and login"
-        echo "✅ Email verification"
-        echo "✅ Secure JWT authentication"
-        echo "✅ User-isolated data storage"
-        echo "✅ Personal article history dashboard"
-        echo "✅ Social login support (if configured)"
+      - name: Deployment summary
+        run: |
+          echo "🚀 Deployment completed successfully!"
+          echo ""
+          echo "📊 **Deployment Summary:**"
+          echo "Frontend URL: https://${{ needs.deploy.outputs.cloudfront-domain }}"
+          echo "Backend API: ${{ needs.deploy.outputs.backend-url }}"
+          echo "S3 Bucket: ${{ needs.deploy.outputs.frontend-bucket }}"
+          echo "CloudFront Distribution: ${{ needs.deploy.outputs.cloudfront-distribution-id }}"
+          echo ""
+          echo "🔐 **Authentication Configuration:**"
+          echo "Cognito User Pool: ${{ needs.deploy.outputs.cognito-user-pool-id }}"
+          echo "Cognito Client: ${{ needs.deploy.outputs.cognito-client-id }}"
+          echo "Cognito Identity Pool: ${{ needs.deploy.outputs.cognito-identity-pool-id }}"
+          echo "Region: ${{ needs.deploy.outputs.cognito-region }}"
+          echo ""
+          echo "🎉 **Authentication Features:**"
+          echo "✅ User registration and login"
+          echo "✅ Email verification"
+          echo "✅ Secure JWT authentication"
+          echo "✅ User-isolated data storage"
+          echo "✅ Personal article history dashboard"
+          echo "✅ Social login support (if configured)"
