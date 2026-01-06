@@ -422,9 +422,9 @@ resource "aws_sqs_queue" "job_queue" {
 resource "aws_cognito_user_pool" "main" {
   name = "${local.project_name}-users-${var.environment}"
 
-  # User attributes
-  alias_attributes         = ["email"]
+  # User attributes - users sign up directly with email as username
   auto_verified_attributes = ["email"]
+  username_attributes      = ["email"]  # Users can sign in with email
 
   # Password policy
   password_policy {
