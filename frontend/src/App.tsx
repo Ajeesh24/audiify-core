@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2, User } from 'lucide-react';
+import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudioPlayer from '@/components/AudioPlayer';
 import RecentArticles from '@/components/RecentArticles';
@@ -108,7 +108,7 @@ function AuthenticatedApp() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isProcessing) {
       processArticle();
     }
@@ -252,7 +252,7 @@ function AuthenticatedApp() {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8"
         >
-          <div className="inline-flex items-center gap-2 sm:gap-3">
+          <div className="inline-flex items-center gap-2 sm:gap-3 flex-1">
             <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl sm:rounded-2xl shadow-lg shadow-purple-500/25">
               <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
@@ -266,11 +266,12 @@ function AuthenticatedApp() {
             </div>
           </div>
 
-          <div className="flex items-start justify-end">
+          <div className="flex justify-end sm:justify-start">
             <Button
               onClick={signOut}
               variant="outline"
-              className="bg-slate-800/50 hover:bg-slate-700/50 text-white border-slate-600/50 text-sm sm:text-base px-3 sm:px-4 py-2 touch-manipulation"
+              size="sm"
+              className="bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white border-slate-600/40 hover:border-slate-500/60 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 touch-manipulation transition-all duration-200 backdrop-blur-sm"
             >
               Sign Out
             </Button>
@@ -306,7 +307,7 @@ function AuthenticatedApp() {
                     placeholder="Paste article URL here..."
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyDown}
                     className="pl-10 sm:pl-12 h-12 sm:h-14 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 touch-manipulation"
                     disabled={isProcessing}
                   />

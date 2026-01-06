@@ -297,10 +297,12 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
               <button
                 onClick={skipBackward}
                 disabled={isLoading}
-                className="relative group w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50"
+                className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
-                <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-white transition-colors" />
-                <span className="absolute -bottom-1 text-xs text-slate-500 group-hover:text-slate-300 font-medium">10</span>
+                <div className="relative">
+                  <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
+                  <span className="absolute -bottom-0.5 -right-0.5 text-[10px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">10</span>
+                </div>
               </button>
 
               <Button
@@ -308,24 +310,26 @@ export default function AudioPlayer({ audio, content, title, mode }: AudioPlayer
                 size="icon"
                 onClick={togglePlay}
                 disabled={isLoading}
-                className="w-12 h-12 sm:w-14 sm:h-14 touch-manipulation"
+                className="w-14 h-14 sm:w-16 sm:h-16 touch-manipulation shadow-lg shadow-purple-500/30"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isPlaying ? (
-                  <Pause className="w-6 h-6 sm:w-7 sm:h-7" />
+                  <Pause className="w-7 h-7 sm:w-8 sm:h-8" />
                 ) : (
-                  <Play className="w-6 h-6 sm:w-7 sm:h-7 ml-0.5" />
+                  <Play className="w-7 h-7 sm:w-8 sm:h-8 ml-0.5" />
                 )}
               </Button>
 
               <button
                 onClick={skipForward}
                 disabled={isLoading}
-                className="relative group w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50"
+                className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
-                <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 group-hover:text-white transition-colors" />
-                <span className="absolute -bottom-1 text-xs text-slate-500 group-hover:text-slate-300 font-medium">10</span>
+                <div className="relative">
+                  <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
+                  <span className="absolute -bottom-0.5 -left-0.5 text-[10px] font-bold text-slate-400 group-hover:text-slate-200 transition-colors">10</span>
+                </div>
               </button>
             </div>
 
