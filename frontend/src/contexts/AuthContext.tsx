@@ -246,63 +246,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const handleSignIn = async (email: string, password: string) => {
-    try {
-      const result = await signIn({
-        username: email,
-        password
-      });
-
-      if (result.isSignedIn) {
-        await refreshAuth();
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Sign in failed:', error);
-      throw error;
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      setUser(null);
-    } catch (error) {
-      console.error('Sign out failed:', error);
-      throw error;
-    }
-  };
-
-  const handleConfirmSignUp = async (email: string, code: string) => {
-    try {
-      const result = await confirmSignUp({
-        username: email,
-        confirmationCode: code
-      });
-      return result;
-    } catch (error) {
-      console.error('Confirm sign up failed:', error);
-      throw error;
-    }
-  };
-
-  const handleResendSignUpCode = async (email: string) => {
-    if (!isConfigured) {
-      throw new Error('Authentication not configured. Please deploy the infrastructure first.');
-    }
-
-    try {
-      const result = await resendSignUpCode({
-        username: email
-      });
-      return result;
-    } catch (error) {
-      console.error('Resend code failed:', error);
-      throw error;
-    }
-  };
-
   const value: AuthContextType = {
     user,
     loading,
