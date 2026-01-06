@@ -14,24 +14,6 @@ RUN yum update -y && \
         gcc \
         gcc-c++ \
         make \
-        nss \
-        libXrandr \
-        libXcomposite \
-        libXcursor \
-        libXdamage \
-        libXext \
-        libXi \
-        libXtst \
-        cups-libs \
-        libXScrnSaver \
-        GConf2 \
-        alsa-lib \
-        atk \
-        gtk3 \
-        libdrm \
-        libxkbcommon \
-        at-spi2-atk \
-        libXss \
         curl \
     && yum clean all
 
@@ -45,16 +27,12 @@ COPY backend/requirements.txt ${LAMBDA_TASK_ROOT}/
 # Install Python dependencies with UV for 10x faster builds
 RUN uv pip install --system --no-cache -r requirements.txt
 
-# Set Playwright environment variables for runtime browser installation
-ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
-
 # Copy application code
 COPY backend/ ${LAMBDA_TASK_ROOT}/
 
-# Create temporary directories for audio processing and Playwright browsers
-RUN mkdir -p /tmp/audifyy /tmp/playwright && \
-    chmod 755 /tmp/audifyy /tmp/playwright
+# Create temporary directory for audio processing
+RUN mkdir -p /tmp/audifyy && \
+    chmod 755 /tmp/audifyy
 
 # Set the Lambda handler
 CMD ["app.main.lambda_handler"]
