@@ -452,7 +452,7 @@ function AuthenticatedApp() {
               className="mt-8"
             >
               <AudioPlayer
-                audioId={audioData.audio_id}
+                audio={audioData}
                 content={mode === 'summary' ? articleContent.summary : articleContent.content}
                 title={articleContent.title}
                 mode={mode}

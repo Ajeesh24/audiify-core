@@ -3,16 +3,16 @@ import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { audifyApi } from '@/services/api';
+import { audifyApi, AudioResponse } from '@/services/api';
 
 interface AudioPlayerProps {
-  audioId: string;
+  audio: AudioResponse;
   content?: string;
   title?: string;
   mode?: 'full' | 'summary';
 }
 
-export default function AudioPlayer({ audioId, content, title, mode }: AudioPlayerProps) {
+export default function AudioPlayer({ audio, content, title, mode }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -24,8 +24,8 @@ export default function AudioPlayer({ audioId, content, title, mode }: AudioPlay
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Audio URL
-  const audioUrl = audifyApi.getAudioStreamUrl(audioId);
+  // Audio URL - Use getDirectAudioUrl to prefer S3 presigned URLs over authenticated endpoints
+  const audioUrl = audifyApi.getDirectAudioUrl(audio);
 
   useEffect(() => {
     const audio = audioRef.current;
