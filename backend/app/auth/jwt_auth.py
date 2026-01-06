@@ -81,6 +81,10 @@ class CognitoJWTVerifier:
                     detail="Invalid token: missing key ID"
                 )
 
+            # Get the unverified payload to check token type
+            unverified_payload = jwt.decode(token, options={"verify_signature": False})
+            token_use = unverified_payload.get('token_use')
+
             # Get public keys
             jwks = await self.get_public_keys()
 
@@ -97,21 +101,38 @@ class CognitoJWTVerifier:
                     detail="Invalid token: public key not found"
                 )
 
-            # Verify and decode token
-            payload = jwt.decode(
-                token,
-                public_key,
-                algorithms=['RS256'],
-                audience=self.client_id,  # Verify audience matches our client ID
-                issuer=f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}"
-            )
+            # Decode token based on token type
+            if token_use == 'access':
+                # Access tokens don't have 'aud' claim - validate without audience
+                payload = jwt.decode(
+                    token,
+                    public_key,
+                    algorithms=['RS256'],
+                    issuer=f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}",
+                    options={"verify_aud": False}
+                )
 
-            # Additional validation
-            token_use = payload.get('token_use')
-            if token_use not in ['access', 'id']:
+                # Verify client_id for access tokens
+                client_id = payload.get('client_id')
+                if client_id != self.client_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid token: wrong client"
+                    )
+
+            elif token_use == 'id':
+                # ID tokens have 'aud' claim - validate with audience
+                payload = jwt.decode(
+                    token,
+                    public_key,
+                    algorithms=['RS256'],
+                    audience=self.client_id,
+                    issuer=f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}"
+                )
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token type"
+                    detail="Invalid token: unknown token type"
                 )
 
             return payload
