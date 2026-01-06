@@ -100,7 +100,7 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
 
         # Step 5: Generate audio
         try:
-            audio_url, audio_metadata = await tts_service.generate_audio(final_text, user_id)
+            audio_s3_key_or_path, audio_metadata = await tts_service.generate_audio(final_text, user_id)
         except Exception as e:
             logger.error(f"TTS generation failed: {str(e)}")
             job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
@@ -121,15 +121,12 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             estimated_reading_time=reading_time
         )
 
-        # Create audio response with proper URL handling
-        # Only include direct URL if it's an HTTP URL (S3), not local file paths
-        direct_audio_url = audio_url if audio_url.startswith('http') else None
-
+        # Create audio response - don't include static URL, it will be generated on-demand
         audio_response = AudioResponse(
             audio_id=audio_metadata["audio_id"],
             duration=None,  # Could calculate with audio analysis
             size=audio_metadata.get("size"),
-            url=direct_audio_url,  # S3 URL only, not local paths
+            url=None,  # Will be generated on-demand via get_audio_url()
             s3_key=audio_metadata.get("s3_key"),
             storage=audio_metadata.get("storage", "unknown")
         )

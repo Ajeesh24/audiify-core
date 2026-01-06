@@ -79,13 +79,6 @@ class TTSService:
                     self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
                     logger.info(f"Using cached audio from S3: {audio_id}")
 
-                    # Generate presigned S3 URL with temporary authentication (valid for 1 hour)
-                    s3_url = self.s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
-                        ExpiresIn=3600  # 1 hour expiration
-                    )
-
                     metadata = {
                         "audio_id": audio_id,
                         "voice": voice,
@@ -94,10 +87,11 @@ class TTSService:
                         "format": format,
                         "cached": True,
                         "s3_key": s3_key,
-                        "s3_url": s3_url,
                         "storage": "s3"
                     }
-                    return s3_url, metadata
+
+                    # Return S3 key, not presigned URL (URLs generated on-demand)
+                    return s3_key, metadata
                 except ClientError as e:
                     if e.response['Error']['Code'] == '404':
                         # File doesn't exist in S3, continue to generate
@@ -160,13 +154,6 @@ class TTSService:
                         ContentDisposition=f"inline; filename={audio_filename}"
                     )
 
-                    # Generate presigned S3 URL with temporary authentication (valid for 1 hour)
-                    s3_url = self.s3_client.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
-                        ExpiresIn=3600  # 1 hour expiration
-                    )
-
                     logger.info(f"Audio uploaded to S3: {s3_key} ({len(final_audio)} bytes)")
 
                     # Calculate metadata
@@ -180,11 +167,11 @@ class TTSService:
                         "chunks": len(chunks),
                         "cached": False,
                         "s3_key": s3_key,
-                        "s3_url": s3_url,
                         "storage": "s3"
                     }
 
-                    return s3_url, metadata
+                    # Return S3 key, not presigned URL (URLs generated on-demand)
+                    return s3_key, metadata
 
                 except Exception as s3_error:
                     logger.error(f"Failed to upload to S3: {str(s3_error)}, falling back to local storage")
