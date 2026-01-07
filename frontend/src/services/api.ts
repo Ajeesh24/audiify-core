@@ -265,7 +265,7 @@ export const audifyApi = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...await getAuthHeaders(),  // Auth is required - restore headers
+          // Don't send Authorization header to Function URL with auth_type=NONE - AWS might reject it
         },
         body: JSON.stringify(request),
       });
