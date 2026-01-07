@@ -224,10 +224,8 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
     allow_methods     = ["POST", "GET", "OPTIONS"]
     allow_headers     = ["*"]
     expose_headers    = ["*"]
-    max_age_in_seconds = 300  # Corrected parameter name
+    # max_age_in_seconds removed - causing validation error
   }
-
-  # Note: Lambda Function URLs don't support tags directly
 }
 
 # SQS Event Source Mapping for Lambda
