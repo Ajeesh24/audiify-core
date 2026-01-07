@@ -203,15 +203,12 @@ async def process_article_streaming(
         if len(cleaned_content.strip()) < 100:
             raise HTTPException(status_code=400, detail="Insufficient article content found after cleaning")
 
-        # Step 4: Process based on mode with streaming
-        final_text = cleaned_content
-
-        # Stream processing generator
-        async def processing_stream_generator():
-            """Generator for streaming the entire processing pipeline."""
+        # Step 4: Process with true pipeline streaming
+        async def pipeline_stream_generator():
+            """Generator for true LLM→TTS pipeline streaming."""
             import json
 
-            # Send initial article metadata
+            # Send immediate article metadata
             word_count = len(cleaned_content.split())
             reading_time = article_extractor.calculate_reading_time(cleaned_content)
 
@@ -226,81 +223,81 @@ async def process_article_streaming(
             }
             yield f"data: {json.dumps(initial_metadata)}\n\n".encode()
 
-            # Handle summary mode with streaming
-            nonlocal final_text
-            if request.mode == "summary":
-                try:
-                    # Send summary start signal
-                    summary_start = {
-                        "type": "summary_start",
-                        "message": "Starting AI summarization..."
-                    }
-                    yield f"data: {json.dumps(summary_start)}\n\n".encode()
-
-                    # Stream summary tokens as they are generated
-                    summary_tokens = []
-                    async for token in llm_service.summarize_article_streaming(title, cleaned_content):
-                        summary_tokens.append(token)
-
-                        # Send streaming summary token
-                        token_data = {
-                            "type": "summary_token",
-                            "token": token,
-                            "partial_summary": "".join(summary_tokens)
-                        }
-                        yield f"data: {json.dumps(token_data)}\n\n".encode()
-
-                    # Complete summary
-                    final_text = "".join(summary_tokens)
-
-                    summary_complete = {
-                        "type": "summary_complete",
-                        "final_summary": final_text,
-                        "message": "Summary generation completed"
-                    }
-                    yield f"data: {json.dumps(summary_complete)}\n\n".encode()
-
-                except Exception as e:
-                    error_data = {
-                        "type": "error",
-                        "error": f"Summarization failed: {str(e)}"
-                    }
-                    yield f"data: {json.dumps(error_data)}\n\n".encode()
-                    return
-
-            # Send audio generation start signal
-            audio_start = {
-                "type": "audio_start",
-                "message": "Starting audio generation...",
-                "text_length": len(final_text)
-            }
-            yield f"data: {json.dumps(audio_start)}\n\n".encode()
-
-            # Stream audio chunks
             try:
-                async for audio_chunk, metadata in tts_service.generate_and_stream_audio(
-                    final_text, user_id
-                ):
-                    # Send audio chunk with metadata
-                    chunk_data = {
-                        "type": "audio",
-                        "metadata": metadata
-                    }
-                    yield f"data: {json.dumps(chunk_data)}\n\n".encode()
+                if request.mode == "summary":
+                    # PIPELINE STREAMING: LLM → TTS → Audio chunks
+                    # User only sees audio, no intermediate text
 
-                    # Send binary audio chunk if present
-                    if audio_chunk:
-                        yield audio_chunk
+                    processing_start = {
+                        "type": "processing_start",
+                        "message": "Starting AI summarization and audio generation..."
+                    }
+                    yield f"data: {json.dumps(processing_start)}\n\n".encode()
+
+                    # Create LLM token stream
+                    llm_token_stream = llm_service.summarize_article_streaming(title, cleaned_content)
+
+                    # Pipe LLM stream directly into TTS pipeline
+                    async for audio_chunk, metadata in tts_service.stream_text_to_audio_pipeline(
+                        llm_token_stream, user_id
+                    ):
+                        # Stream audio chunks directly to user
+                        if audio_chunk:
+                            chunk_data = {
+                                "type": "audio",
+                                "metadata": {
+                                    **metadata,
+                                    "pipeline_streaming": True
+                                }
+                            }
+                            yield f"data: {json.dumps(chunk_data)}\n\n".encode()
+                            yield audio_chunk
+
+                        # Handle completion or error metadata
+                        elif metadata.get("completed") or metadata.get("error"):
+                            status_data = {
+                                "type": "status",
+                                "metadata": metadata
+                            }
+                            yield f"data: {json.dumps(status_data)}\n\n".encode()
+
+                else:
+                    # FULL MODE: Use existing TTS streaming on complete text
+                    audio_start = {
+                        "type": "processing_start",
+                        "message": "Starting audio generation...",
+                        "text_length": len(cleaned_content)
+                    }
+                    yield f"data: {json.dumps(audio_start)}\n\n".encode()
+
+                    # Stream audio chunks from complete text
+                    async for audio_chunk, metadata in tts_service.generate_and_stream_audio(
+                        cleaned_content, user_id
+                    ):
+                        if audio_chunk:
+                            chunk_data = {
+                                "type": "audio",
+                                "metadata": metadata
+                            }
+                            yield f"data: {json.dumps(chunk_data)}\n\n".encode()
+                            yield audio_chunk
+
+                        elif metadata.get("completed") or metadata.get("error"):
+                            status_data = {
+                                "type": "status",
+                                "metadata": metadata
+                            }
+                            yield f"data: {json.dumps(status_data)}\n\n".encode()
 
             except Exception as e:
                 error_data = {
                     "type": "error",
-                    "error": f"Audio generation failed: {str(e)}"
+                    "error": f"Processing failed: {str(e)}"
                 }
                 yield f"data: {json.dumps(error_data)}\n\n".encode()
                 return
 
-            # Send completion signal
+            # Send final completion signal
             completion_data = {
                 "type": "complete",
                 "message": "Processing completed successfully"
@@ -309,7 +306,7 @@ async def process_article_streaming(
 
         # Return streaming response
         return StreamingResponse(
-            processing_stream_generator(),
+            pipeline_stream_generator(),
             media_type="application/octet-stream",
             headers={
                 "Cache-Control": "no-cache",

@@ -40,6 +40,215 @@ class TTSService:
         if not self.bucket_name:
             logger.warning("AUDIO_BUCKET_NAME not set - falling back to local storage")
 
+    async def stream_text_to_audio_pipeline(
+        self,
+        text_stream,  # AsyncGenerator of text tokens from LLM
+        user_id: str,
+        voice: str = "alloy",
+        model: str = "tts-1",
+        speed: float = 1.0,
+        format: str = "mp3",
+        max_sentence_length: int = 3500  # Stay under 4000 char TTS limit
+    ) -> AsyncGenerator[tuple[bytes, Dict[str, Any]], None]:
+        """
+        Pipeline streaming: Convert streaming LLM text directly to streaming audio.
+
+        This method takes streaming text from the LLM and converts it to audio
+        chunks as sentences are completed, providing true real-time streaming.
+
+        Args:
+            text_stream: AsyncGenerator yielding text tokens from LLM
+            user_id: User ID for file organization
+            voice: TTS voice to use
+            model: TTS model to use
+            speed: Speech speed
+            format: Audio format
+            max_sentence_length: Maximum length before forcing sentence break
+
+        Yields:
+            Tuples of (audio_chunk, metadata)
+        """
+        try:
+            # Generate unique ID for the complete audio
+            import time
+            import re
+            audio_id = f"stream_{int(time.time())}_{user_id[:8]}"
+
+            sentence_buffer = ""
+            sentence_count = 0
+            total_chars_processed = 0
+            error_count = 0
+            max_errors = 5  # Stop after too many TTS failures
+
+            logger.info(f"Starting LLM→TTS pipeline streaming: {audio_id}")
+
+            # Process streaming text tokens
+            async for token in text_stream:
+                # Skip empty or whitespace-only tokens
+                if not token or token.isspace():
+                    continue
+
+                sentence_buffer += token
+                total_chars_processed += len(token)
+
+                # Enhanced sentence detection - avoid false positives
+                sentence_ended = False
+
+                # Look for sentence endings, but avoid false positives
+                if any(delimiter in token for delimiter in ['. ', '! ', '? ', '.\n', '!\n', '?\n']):
+                    # Check if it's a real sentence ending (not abbreviation, decimal, URL, etc.)
+                    trimmed_buffer = sentence_buffer.strip()
+
+                    # Avoid common false positives
+                    is_abbreviation = re.search(r'\b[A-Z][a-z]?\.\s*$', trimmed_buffer)
+                    is_decimal = re.search(r'\d+\.\s*\d', trimmed_buffer)
+                    is_url = 'http' in trimmed_buffer or 'www.' in trimmed_buffer
+                    is_ellipsis = trimmed_buffer.endswith('...')
+
+                    # Only treat as sentence end if it's likely a real sentence
+                    if not (is_abbreviation or is_decimal or is_url or is_ellipsis):
+                        sentence_ended = True
+
+                # Force sentence break if buffer gets too long (prevent memory issues)
+                if len(sentence_buffer) > max_sentence_length:
+                    logger.warning(f"Forcing sentence break at {len(sentence_buffer)} chars")
+                    sentence_ended = True
+
+                # Process complete sentence
+                if sentence_ended and sentence_buffer.strip():
+                    sentence_count += 1
+                    sentence_text = sentence_buffer.strip()
+
+                    # Ensure sentence isn't too long for TTS
+                    if len(sentence_text) > 4000:
+                        logger.warning(f"Sentence {sentence_count} too long ({len(sentence_text)} chars), truncating")
+                        sentence_text = sentence_text[:4000]
+
+                    logger.debug(f"Processing sentence {sentence_count}: {len(sentence_text)} chars")
+
+                    try:
+                        # Generate audio for this sentence
+                        response = await self.openai_client.audio.speech.create(
+                            model=model,
+                            voice=voice,
+                            input=sentence_text,
+                            speed=speed,
+                            response_format=format
+                        )
+
+                        audio_data = response.content
+
+                        # Stream this audio chunk immediately
+                        metadata = {
+                            "audio_id": audio_id,
+                            "voice": voice,
+                            "model": model,
+                            "speed": speed,
+                            "format": format,
+                            "sentence": sentence_count,
+                            "chars_processed": total_chars_processed,
+                            "streaming": True,
+                            "sentence_length": len(sentence_text),
+                            "sentence_preview": sentence_text[:50] + "..." if len(sentence_text) > 50 else sentence_text
+                        }
+
+                        yield audio_data, metadata
+
+                    except Exception as e:
+                        error_count += 1
+                        logger.error(f"Error generating audio for sentence {sentence_count}: {str(e)}")
+
+                        # Stop streaming if too many consecutive errors
+                        if error_count >= max_errors:
+                            error_metadata = {
+                                "audio_id": audio_id,
+                                "error": f"Too many TTS failures ({error_count}), stopping pipeline",
+                                "streaming": True,
+                                "completed": False
+                            }
+                            yield b'', error_metadata
+                            return
+
+                        # Continue processing other sentences for isolated failures
+                        continue
+
+                    # Reset for next sentence
+                    sentence_buffer = ""
+
+            # Process any remaining text in buffer
+            if sentence_buffer.strip():
+                sentence_count += 1
+                final_text = sentence_buffer.strip()
+
+                # Handle final text length
+                if len(final_text) > 4000:
+                    logger.warning(f"Final sentence too long ({len(final_text)} chars), truncating")
+                    final_text = final_text[:4000]
+
+                logger.debug(f"Processing final sentence {sentence_count}: {len(final_text)} chars")
+
+                try:
+                    response = await self.openai_client.audio.speech.create(
+                        model=model,
+                        voice=voice,
+                        input=final_text,
+                        speed=speed,
+                        response_format=format
+                    )
+
+                    audio_data = response.content
+
+                    final_metadata = {
+                        "audio_id": audio_id,
+                        "voice": voice,
+                        "model": model,
+                        "speed": speed,
+                        "format": format,
+                        "sentence": sentence_count,
+                        "chars_processed": total_chars_processed,
+                        "streaming": True,
+                        "final": True,
+                        "total_sentences": sentence_count,
+                        "sentence_length": len(final_text)
+                    }
+
+                    yield audio_data, final_metadata
+
+                except Exception as e:
+                    logger.error(f"Error generating audio for final sentence: {str(e)}")
+                    error_metadata = {
+                        "audio_id": audio_id,
+                        "error": f"Failed to process final sentence: {str(e)}",
+                        "streaming": True,
+                        "completed": False
+                    }
+                    yield b'', error_metadata
+                    return
+
+            # Send completion signal
+            completion_metadata = {
+                "audio_id": audio_id,
+                "completed": True,
+                "total_sentences": sentence_count,
+                "total_chars": total_chars_processed,
+                "error_count": error_count,
+                "streaming": True
+            }
+
+            logger.info(f"Pipeline streaming completed: {audio_id} - {sentence_count} sentences, {total_chars_processed} chars, {error_count} errors")
+            yield b'', completion_metadata
+
+        except Exception as e:
+            logger.error(f"Critical error in LLM→TTS pipeline streaming: {str(e)}")
+            error_metadata = {
+                "audio_id": audio_id if 'audio_id' in locals() else "unknown",
+                "error": f"Pipeline streaming failed: {str(e)}",
+                "streaming": True,
+                "completed": False,
+                "critical": True
+            }
+            yield b'', error_metadata
+
     async def generate_and_stream_audio(
         self,
         text: str,
