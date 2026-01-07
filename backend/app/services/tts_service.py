@@ -40,6 +40,214 @@ class TTSService:
         if not self.bucket_name:
             logger.warning("AUDIO_BUCKET_NAME not set - falling back to local storage")
 
+    async def generate_and_stream_audio(
+        self,
+        text: str,
+        user_id: str,
+        voice: str = "alloy",
+        model: str = "tts-1",
+        speed: float = 1.0,
+        format: str = "mp3"
+    ) -> AsyncGenerator[tuple[bytes, Dict[str, Any]], None]:
+        """
+        Generate audio from text and stream it while simultaneously saving to S3.
+
+        This method provides real-time streaming to the user while building up the
+        complete audio file in S3 for later access via Recent Articles.
+
+        Args:
+            text: Text to convert to speech
+            user_id: User ID for file organization and access control
+            voice: Voice to use (alloy, echo, fable, onyx, nova, shimmer)
+            model: TTS model (tts-1 or tts-1-hd)
+            speed: Speech speed (0.25 to 4.0)
+            format: Audio format (mp3, opus, aac, flac)
+
+        Yields:
+            Tuples of (audio_chunk, metadata) where metadata includes audio_id, progress, etc.
+        """
+        try:
+            # Generate unique ID for this audio
+            content_hash = hashlib.md5(f"{text}{voice}{model}{speed}".encode()).hexdigest()
+            audio_id = f"audio_{content_hash[:16]}"
+            audio_filename = f"{audio_id}.{format}"
+            s3_key = f"audio/user-{user_id}/{audio_filename}"
+
+            logger.info(f"Starting streaming audio generation: {audio_id}")
+
+            # Check if audio already exists in S3
+            if self.bucket_name:
+                try:
+                    # Check if file exists in S3
+                    self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+                    logger.info(f"Audio {audio_id} already exists in S3, streaming existing file")
+
+                    # Stream existing file from S3
+                    try:
+                        response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+                        file_size = response['ContentLength']
+
+                        # Stream in chunks
+                        chunk_size = 8192
+                        bytes_streamed = 0
+
+                        for chunk in iter(lambda: response['Body'].read(chunk_size), b""):
+                            if not chunk:
+                                break
+
+                            bytes_streamed += len(chunk)
+                            progress = int((bytes_streamed / file_size) * 100)
+
+                            metadata = {
+                                "audio_id": audio_id,
+                                "voice": voice,
+                                "model": model,
+                                "speed": speed,
+                                "format": format,
+                                "cached": True,
+                                "s3_key": s3_key,
+                                "storage": "s3",
+                                "progress": progress,
+                                "bytes_streamed": bytes_streamed,
+                                "total_size": file_size
+                            }
+
+                            yield chunk, metadata
+
+                        return
+
+                    except Exception as e:
+                        logger.error(f"Error streaming existing S3 file {s3_key}: {str(e)}")
+                        # Fall through to generate new audio
+
+                except ClientError as e:
+                    if e.response['Error']['Code'] != '404':
+                        logger.warning(f"S3 error checking for {audio_id}: {str(e)}")
+
+            # Generate new audio with streaming
+            logger.info(f"Generating new streaming audio: {audio_id}")
+
+            # Split text into chunks
+            chunks = self._split_text(text, max_length=4000)
+            total_chunks = len(chunks)
+
+            # S3 buffer for incremental storage
+            s3_buffer = BytesIO()
+            total_bytes_generated = 0
+
+            for chunk_idx, text_chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {chunk_idx + 1}/{total_chunks}")
+
+                # Generate audio for this chunk
+                response = await self.openai_client.audio.speech.create(
+                    model=model,
+                    voice=voice,
+                    input=text_chunk,
+                    speed=speed,
+                    response_format=format
+                )
+
+                audio_data = response.content
+                total_bytes_generated += len(audio_data)
+
+                # Add to S3 buffer
+                s3_buffer.write(audio_data)
+
+                # Stream this chunk to user immediately
+                chunk_progress = int(((chunk_idx + 1) / total_chunks) * 100)
+
+                metadata = {
+                    "audio_id": audio_id,
+                    "voice": voice,
+                    "model": model,
+                    "speed": speed,
+                    "format": format,
+                    "cached": False,
+                    "s3_key": s3_key,
+                    "storage": "s3" if self.bucket_name else "streaming",
+                    "progress": chunk_progress,
+                    "chunk": chunk_idx + 1,
+                    "total_chunks": total_chunks,
+                    "bytes_generated": total_bytes_generated
+                }
+
+                yield audio_data, metadata
+
+                # Periodically upload buffer to S3 (every few chunks or if buffer gets large)
+                if self.bucket_name and (
+                    chunk_idx % 3 == 0 or  # Every 3 chunks
+                    s3_buffer.tell() > 1024 * 1024 or  # Buffer > 1MB
+                    chunk_idx == total_chunks - 1  # Last chunk
+                ):
+                    try:
+                        # Upload accumulated audio to S3
+                        buffer_data = s3_buffer.getvalue()
+                        if buffer_data:
+                            # For MP3, we can append chunks (simple concatenation works)
+                            if chunk_idx == 0:
+                                # First upload - create new object
+                                self.s3_client.put_object(
+                                    Bucket=self.bucket_name,
+                                    Key=s3_key,
+                                    Body=buffer_data,
+                                    ContentType=f"audio/{format}",
+                                    ContentDisposition=f"inline; filename={audio_filename}"
+                                )
+                            else:
+                                # Subsequent uploads - we need to append
+                                # For simplicity, we'll replace the entire object
+                                # In production, consider using multipart upload for large files
+                                existing_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+                                existing_data = existing_response['Body'].read()
+                                combined_data = existing_data + audio_data
+
+                                self.s3_client.put_object(
+                                    Bucket=self.bucket_name,
+                                    Key=s3_key,
+                                    Body=combined_data,
+                                    ContentType=f"audio/{format}",
+                                    ContentDisposition=f"inline; filename={audio_filename}"
+                                )
+
+                            logger.debug(f"Uploaded chunk {chunk_idx + 1} to S3: {s3_key}")
+
+                    except Exception as e:
+                        logger.error(f"Failed to upload chunk {chunk_idx + 1} to S3: {str(e)}")
+                        # Continue streaming even if S3 upload fails
+
+            # Final metadata
+            final_metadata = {
+                "audio_id": audio_id,
+                "voice": voice,
+                "model": model,
+                "speed": speed,
+                "format": format,
+                "size": total_bytes_generated,
+                "chunks": total_chunks,
+                "cached": False,
+                "s3_key": s3_key,
+                "storage": "s3" if self.bucket_name else "streaming",
+                "progress": 100,
+                "completed": True
+            }
+
+            logger.info(f"Streaming audio generation completed: {audio_id} ({total_bytes_generated} bytes)")
+
+            # Yield final completion signal
+            yield b'', final_metadata
+
+        except Exception as e:
+            logger.error(f"Error in streaming audio generation: {str(e)}")
+            # Yield error metadata
+            error_metadata = {
+                "audio_id": audio_id if 'audio_id' in locals() else "unknown",
+                "error": str(e),
+                "progress": 0,
+                "completed": False
+            }
+            yield b'', error_metadata
+            raise Exception(f"Failed to generate streaming audio: {str(e)}")
+
     async def generate_audio(
         self,
         text: str,

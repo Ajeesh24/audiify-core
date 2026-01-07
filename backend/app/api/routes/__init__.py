@@ -180,6 +180,121 @@ async def validate_url(request: dict):
         return {"valid": False, "url": url, "error": str(e)}
 
 
+@router.post("/process-article-streaming")
+async def process_article_streaming(
+    request: ArticleProcessRequest,
+    user_id: str = Depends(get_user_id)
+):
+    """
+    Stream article processing with real-time audio generation.
+    Returns audio chunks as they're generated while building complete file in S3.
+    """
+    try:
+        logger.info(f"Starting streaming processing for user {user_id}: {request.url} (mode: {request.mode})")
+
+        # Step 1: Validate URL
+        is_valid = await article_extractor.validate_url(str(request.url))
+        if not is_valid:
+            raise HTTPException(status_code=400, detail="Invalid or inaccessible URL")
+
+        # Step 2: Extract article content
+        try:
+            title, raw_content, is_paywalled = await article_extractor.extract_article(str(request.url))
+        except Exception as e:
+            logger.error(f"Extraction failed: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to extract article content: {str(e)}")
+
+        if is_paywalled:
+            raise HTTPException(status_code=400, detail="Article appears to be behind a paywall or requires subscription")
+
+        # Step 3: Clean content
+        cleaned_content = article_extractor.clean_content(raw_content)
+
+        if len(cleaned_content.strip()) < 100:
+            raise HTTPException(status_code=400, detail="Insufficient article content found after cleaning")
+
+        # Step 4: Process based on mode
+        final_text = cleaned_content
+        summary = None
+
+        if request.mode == "summary":
+            try:
+                summary = await llm_service.summarize_article(title, cleaned_content)
+                final_text = summary
+            except Exception as e:
+                logger.error(f"Summarization failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+
+        # Step 5: Enhance text for audio (optional)
+        try:
+            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
+            final_text = enhanced_text
+        except Exception as e:
+            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
+
+        # Step 6: Stream audio generation
+        async def audio_stream_generator():
+            """Generator for streaming audio with metadata headers."""
+
+            # Send initial metadata
+            word_count = len(final_text.split())
+            reading_time = article_extractor.calculate_reading_time(final_text)
+
+            initial_metadata = {
+                "type": "metadata",
+                "title": title,
+                "word_count": word_count,
+                "reading_time": reading_time,
+                "mode": request.mode,
+                "url": str(request.url)
+            }
+
+            # Send metadata as JSON line
+            import json
+            yield f"data: {json.dumps(initial_metadata)}\n\n".encode()
+
+            # Stream audio chunks
+            async for audio_chunk, metadata in tts_service.generate_and_stream_audio(
+                final_text, user_id
+            ):
+                # Send audio chunk with metadata
+                chunk_data = {
+                    "type": "audio",
+                    "metadata": metadata
+                }
+
+                # Send metadata first, then binary audio data
+                yield f"data: {json.dumps(chunk_data)}\n\n".encode()
+
+                # Send binary audio chunk if present
+                if audio_chunk:
+                    yield audio_chunk
+
+            # Send completion signal
+            completion_data = {
+                "type": "complete",
+                "message": "Audio generation completed"
+            }
+            yield f"data: {json.dumps(completion_data)}\n\n".encode()
+
+        # Return streaming response
+        return StreamingResponse(
+            audio_stream_generator(),
+            media_type="application/octet-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable nginx buffering
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in streaming processing: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 @router.post("/process-article", response_model=JobStartResponse)
 async def process_article(
     request: ArticleProcessRequest,

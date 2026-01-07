@@ -16,6 +16,7 @@ function AuthenticatedApp() {
   const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
+  const [useStreaming, setUseStreaming] = useState(true); // Default to streaming for better UX
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const [progress, setProgress] = useState(0);
@@ -50,21 +51,51 @@ function AuthenticatedApp() {
         return;
       }
 
-      // Step 2: Process article with progress tracking
-      setProcessingStep('Starting article processing...');
-
       const request: ArticleProcessRequest = {
         url,
         mode,
       };
 
-      const response: ProcessArticleResponse = await audifyApi.processArticle(
-        request,
-        (status: JobStatusResponse) => {
-          setProgress(status.progress);
-          setProcessingStep(status.step || 'Processing...');
-        }
-      );
+      let response: ProcessArticleResponse;
+
+      if (useStreaming) {
+        // Use new streaming API
+        setProcessingStep('Starting streaming audio generation...');
+        console.log('🚀 Using streaming processing mode');
+
+        response = await audifyApi.processArticleStreaming(
+          request,
+          (metadata: any) => {
+            if (metadata.type === 'metadata') {
+              setProcessingStep('Processing article content...');
+              setProgress(20);
+            } else if (metadata.progress !== undefined) {
+              // Audio generation progress
+              const audioProgress = Math.min(80 + (metadata.progress * 0.2), 100);
+              setProgress(audioProgress);
+              setProcessingStep(
+                metadata.chunk
+                  ? `Generating audio... (chunk ${metadata.chunk}/${metadata.total_chunks})`
+                  : 'Generating audio...'
+              );
+            }
+          }
+        );
+
+        console.log('✅ Streaming processing completed:', response);
+      } else {
+        // Use traditional polling API
+        setProcessingStep('Starting article processing...');
+        console.log('🔄 Using traditional polling mode');
+
+        response = await audifyApi.processArticle(
+          request,
+          (status: JobStatusResponse) => {
+            setProgress(status.progress);
+            setProcessingStep(status.step || 'Processing...');
+          }
+        );
+      }
 
       if (!response.success) {
         setError(response.error || 'Failed to process article');
@@ -89,7 +120,6 @@ function AuthenticatedApp() {
       // Handle different types of errors
       if (err.message?.includes('Authentication required')) {
         setError('Please sign in to process articles.');
-        // Could trigger sign out here if token is expired
       } else if (err.message?.includes('Rate limit')) {
         setError('Rate limit exceeded. Please try again in a few minutes.');
       } else if (err.message?.includes('timeout')) {
@@ -336,6 +366,28 @@ function AuthenticatedApp() {
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
+                </div>
+
+                {/* Streaming Toggle */}
+                <div className="flex items-center justify-center space-x-3">
+                  <span className="text-sm text-slate-400">Processing Mode:</span>
+                  <div className="flex items-center space-x-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useStreaming}
+                        onChange={(e) => setUseStreaming(e.target.checked)}
+                        disabled={isProcessing}
+                        className="sr-only"
+                      />
+                      <div className={`relative w-11 h-6 rounded-full transition-colors ${useStreaming ? 'bg-purple-600' : 'bg-slate-600'}`}>
+                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${useStreaming ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                      <span className="ml-2 text-sm text-slate-300">
+                        {useStreaming ? 'Streaming (Fast)' : 'Standard (Slower)'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Generate Button */}

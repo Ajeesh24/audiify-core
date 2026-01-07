@@ -222,6 +222,143 @@ export const audifyApi = {
     throw new Error('Job polling timeout - processing took too long');
   },
 
+  // Process article with streaming (new feature!)
+  async processArticleStreaming(
+    request: ArticleProcessRequest,
+    onProgress?: (metadata: any) => void,
+    onAudioChunk?: (chunk: Uint8Array, metadata: any) => void
+  ): Promise<ProcessArticleResponse> {
+    try {
+      console.log('🚀 Starting streaming article processing:', request);
+
+      // Helper to get auth headers
+      const getAuthHeaders = async () => {
+        if (getAuthToken) {
+          const token = await getAuthToken();
+          if (token) {
+            return { 'Authorization': `Bearer ${token}` };
+          }
+        }
+        return {};
+      };
+
+      const response = await fetch(`${API_BASE_URL}/process-article-streaming`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...await getAuthHeaders(),
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body reader available');
+      }
+
+      let articleMetadata: any = null;
+      let audioMetadata: any = null;
+      let audioChunks: Uint8Array[] = [];
+      let buffer = '';
+      let isComplete = false;
+
+      console.log('📡 Starting to read streaming response...');
+
+      try {
+        while (!isComplete) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            console.log('✅ Streaming completed');
+            break;
+          }
+
+          // Decode chunk and add to buffer
+          const chunk = new TextDecoder().decode(value);
+          buffer += chunk;
+
+          // Process complete lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+
+            if (trimmedLine.startsWith('data: ')) {
+              try {
+                const jsonStr = trimmedLine.substring(6);
+                const data = JSON.parse(jsonStr);
+
+                console.log('📨 Received streaming data:', data.type);
+
+                if (data.type === 'metadata') {
+                  articleMetadata = data;
+                  console.log('📋 Article metadata received:', data.title);
+                  onProgress?.(data);
+                } else if (data.type === 'audio') {
+                  audioMetadata = data.metadata;
+                  console.log(`🎵 Audio chunk progress: ${data.metadata.progress}%`);
+                  onProgress?.(data.metadata);
+                } else if (data.type === 'complete') {
+                  console.log('🎉 Audio generation completed');
+                  isComplete = true;
+                }
+              } catch (e) {
+                console.warn('⚠️ Failed to parse JSON line:', trimmedLine);
+              }
+            } else if (trimmedLine && !trimmedLine.startsWith('data:')) {
+              // This might be binary audio data encoded as base64 or direct binary
+              // For now, we'll skip since we're getting audio via metadata
+              console.log('📦 Received non-JSON data (likely binary audio)');
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // Build response from collected metadata
+      if (audioMetadata && articleMetadata) {
+        const audioResponse: AudioResponse = {
+          audio_id: audioMetadata.audio_id,
+          url: undefined,
+          size: audioMetadata.size,
+          storage: audioMetadata.storage,
+          s3_key: audioMetadata.s3_key,
+          duration: undefined,
+          expires_at: undefined,
+        };
+
+        const articleContent: ArticleContent = {
+          title: articleMetadata.title || 'Unknown Article',
+          content: '', // Content not returned in streaming mode for performance
+          summary: articleMetadata.mode === 'summary' ? 'AI-generated summary' : undefined,
+          word_count: articleMetadata.word_count || 0,
+          estimated_reading_time: articleMetadata.reading_time || 0,
+        };
+
+        console.log('✅ Successfully processed streaming response');
+
+        return {
+          success: true,
+          article: articleContent,
+          audio: audioResponse,
+        };
+      }
+
+      throw new Error('Incomplete streaming response - missing metadata');
+
+    } catch (error) {
+      console.error('❌ Streaming processing error:', error);
+      throw error;
+    }
+  },
+
   // Complete article processing (combines start + poll)
   async processArticle(
     request: ArticleProcessRequest,
