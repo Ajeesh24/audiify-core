@@ -231,6 +231,22 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   }
 }
 
+# Required permissions for Function URL with NONE auth type (as per AWS docs)
+resource "aws_lambda_permission" "function_url_invoke_url" {
+  statement_id           = "FunctionURLAllowPublicAccess"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.backend.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "function_url_invoke_function" {
+  statement_id  = "FunctionURLInvokeAllowPublicAccess"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.backend.function_name
+  principal     = "*"
+}
+
 # SQS Event Source Mapping for Lambda
 resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   event_source_arn = aws_sqs_queue.job_queue.arn
