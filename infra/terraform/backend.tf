@@ -184,8 +184,7 @@ resource "aws_lambda_function" "backend" {
     variables = {
       ENVIRONMENT              = var.environment
       CORS_ORIGINS             = jsonencode([
-        "http://localhost:5173",                                      # Local development
-        "https://${aws_cloudfront_distribution.frontend.domain_name}" # CloudFront distribution
+        "https://${aws_cloudfront_distribution.frontend.domain_name}" # CloudFront production only
       ])
       AUDIO_BUCKET_NAME        = aws_s3_bucket.audio_storage.bucket
       TEMP_DIR                 = "/tmp"
