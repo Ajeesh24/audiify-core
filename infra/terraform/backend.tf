@@ -222,7 +222,6 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   cors {
     allow_credentials = true
     allow_origins = [
-      "http://localhost:5173",                                      # Local development
       "https://${aws_cloudfront_distribution.frontend.domain_name}" # CloudFront distribution only
     ]
     allow_methods     = ["POST", "GET"]
