@@ -79,6 +79,7 @@ jobs:
 
     outputs:
       backend-url: ${{ steps.tf-output.outputs.backend_url }}
+      streaming-url: ${{ steps.tf-output.outputs.streaming_url }}
       frontend-bucket: ${{ steps.tf-output.outputs.frontend_bucket }}
       cloudfront-distribution-id: ${{ steps.tf-output.outputs.cloudfront_distribution_id }}
       cloudfront-domain: ${{ steps.tf-output.outputs.cloudfront_domain }}
@@ -190,6 +191,7 @@ jobs:
         run: |
           cd infra/terraform
           echo "backend_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
+          echo "streaming_url=$(terraform output -raw lambda_function_url)" >> $GITHUB_OUTPUT
           echo "frontend_bucket=$(terraform output -raw frontend_bucket_name)" >> $GITHUB_OUTPUT
           echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> $GITHUB_OUTPUT
           echo "cloudfront_domain=$(terraform output -raw cloudfront_domain_name)" >> $GITHUB_OUTPUT
@@ -231,6 +233,7 @@ jobs:
       - name: Update frontend config with runtime environment
         run: |
           BACKEND_URL="${{ needs.deploy.outputs.backend-url }}/api"
+          STREAMING_URL="${{ needs.deploy.outputs.streaming-url }}"
           COGNITO_USER_POOL_ID="${{ needs.deploy.outputs.cognito-user-pool-id }}"
           COGNITO_CLIENT_ID="${{ needs.deploy.outputs.cognito-client-id }}"
           COGNITO_IDENTITY_POOL_ID="${{ needs.deploy.outputs.cognito-identity-pool-id }}"
@@ -240,6 +243,7 @@ jobs:
           cat > frontend/dist/env.js << EOF
           window.ENV = {
             VITE_API_URL: '$BACKEND_URL',
+            VITE_STREAMING_API_URL: '$STREAMING_URL',
             VITE_COGNITO_USER_POOL_ID: '$COGNITO_USER_POOL_ID',
             VITE_COGNITO_CLIENT_ID: '$COGNITO_CLIENT_ID',
             VITE_COGNITO_IDENTITY_POOL_ID: '$COGNITO_IDENTITY_POOL_ID',
@@ -249,6 +253,7 @@ jobs:
 
           echo "✅ Updated env.js with runtime configuration:"
           echo "  API URL: $BACKEND_URL"
+          echo "  Streaming URL: $STREAMING_URL"
           echo "  Cognito User Pool: $COGNITO_USER_POOL_ID"
           echo "  Cognito Client: $COGNITO_CLIENT_ID"
           echo "  Cognito Identity Pool: $COGNITO_IDENTITY_POOL_ID"
@@ -308,6 +313,7 @@ jobs:
           echo "📊 **Deployment Summary:**"
           echo "Frontend URL: https://${{ needs.deploy.outputs.cloudfront-domain }}"
           echo "Backend API: ${{ needs.deploy.outputs.backend-url }}"
+          echo "Streaming API: ${{ needs.deploy.outputs.streaming-url }}"
           echo "S3 Bucket: ${{ needs.deploy.outputs.frontend-bucket }}"
           echo "CloudFront Distribution: ${{ needs.deploy.outputs.cloudfront-distribution-id }}"
           echo ""
