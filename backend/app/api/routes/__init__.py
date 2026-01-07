@@ -183,7 +183,7 @@ async def validate_url(request: dict):
 @router.post("/process-article-streaming")
 async def process_article_streaming(
     request: ArticleProcessRequest,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_user_id)  # Keep auth required - security is important
 ):
     """
     Stream article processing with real-time audio generation.

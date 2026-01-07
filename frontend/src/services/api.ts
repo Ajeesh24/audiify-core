@@ -265,7 +265,7 @@ export const audifyApi = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...await getAuthHeaders(),
+          ...await getAuthHeaders(),  // Auth is required - restore headers
         },
         body: JSON.stringify(request),
       });

@@ -157,13 +157,28 @@ app.include_router(router, prefix="/api", tags=["api"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-        log_level="info"
-    )
+
+    # Check if we're running in Lambda with Web Adapter
+    if os.environ.get("AWS_LAMBDA_FUNCTION_NAME") and os.environ.get("AWS_LWA_ENABLE_COMPRESSION"):
+        # Running in Lambda with Web Adapter - start server for Function URL requests
+        port = int(os.environ.get("PORT", 8080))
+        logger.info(f"Starting FastAPI server for Lambda Web Adapter on port {port}")
+        uvicorn.run(
+            app,  # Use the main app (not app_for_lambda) for streaming support
+            host="0.0.0.0",
+            port=port,
+            reload=False,
+            log_level="info"
+        )
+    else:
+        # Running locally
+        uvicorn.run(
+            "app.main:app",
+            host=settings.host,
+            port=settings.port,
+            reload=settings.debug,
+            log_level="info"
+        )
 
 # Lambda handler for AWS Lambda deployment
 # Import Mangum for Lambda compatibility
@@ -223,8 +238,8 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
 
     def lambda_handler(event, context):
         """
-        Lambda handler that routes HTTP and SQS events appropriately.
-        Function URL requests will be handled by Lambda Web Adapter automatically.
+        Lambda handler that routes SQS and API Gateway events appropriately.
+        Function URL requests are automatically handled by Lambda Web Adapter.
         """
         import json
         import asyncio
@@ -279,8 +294,9 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             return {"statusCode": 200, "body": "SQS events processed"}
 
         else:
-            # This is an HTTP event - use existing Mangum handler
-            # Function URL streaming requests are handled by Lambda Web Adapter extension
+            # This is an HTTP event (API Gateway) - use existing Mangum handler
+            # Function URL requests are automatically intercepted by Lambda Web Adapter
+            logger.info("HTTP event - using Mangum handler")
             return mangum_handler(event, context)
 else:
     # Create a dummy handler for non-Lambda environments

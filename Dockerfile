@@ -1,12 +1,15 @@
 # Lambda-optimized Dockerfile with Function URL Streaming Support
 FROM public.ecr.aws/lambda/python:3.11
 
-# Add Lambda Web Adapter for Function URL streaming (doesn't interfere with existing functionality)
+# Add Lambda Web Adapter for Function URL streaming
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 
-# Set environment variables for Lambda
+# Set environment variables for Lambda Web Adapter
 ENV PYTHONPATH=/var/task
 ENV AWS_LAMBDA_FUNCTION_NAME=audifyy-backend
+ENV AWS_LWA_ENABLE_COMPRESSION=true
+ENV AWS_LWA_INVOKE_MODE=response_stream
+ENV PORT=8080
 
 # Install UV first for much faster Python package management
 RUN pip install --no-cache-dir uv
@@ -37,5 +40,6 @@ COPY backend/ ${LAMBDA_TASK_ROOT}/
 RUN mkdir -p /tmp/audifyy && \
     chmod 755 /tmp/audifyy
 
-# Hybrid approach: Keep existing lambda handler (for SQS + regular HTTP)
-CMD ["app.main.lambda_handler"]
+# For Function URL streaming: Start FastAPI server directly (Web Adapter will intercept)
+# For API Gateway: Lambda will call the handler
+CMD ["python", "app/main.py"]
