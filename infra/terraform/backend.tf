@@ -221,10 +221,10 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
       "https://${aws_cloudfront_distribution.frontend.domain_name}",  # CloudFront distribution
       var.domain_name != "" ? "https://${var.domain_name}" : ""   # Custom domain if configured
     ]
-    allow_methods     = ["POST", "GET", "OPTIONS"]
+    allow_methods     = ["POST", "GET"]  # Removed OPTIONS (7 chars exceeds 6 char limit)
     allow_headers     = ["*"]
     expose_headers    = ["*"]
-    max_age           = 300  # Correct parameter name from AWS docs
+    max_age           = 300
   }
 }
 
