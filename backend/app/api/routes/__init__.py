@@ -203,68 +203,113 @@ async def process_article_streaming(
         if len(cleaned_content.strip()) < 100:
             raise HTTPException(status_code=400, detail="Insufficient article content found after cleaning")
 
-        # Step 4: Process based on mode
+        # Step 4: Process based on mode with streaming
         final_text = cleaned_content
-        summary = None
 
-        if request.mode == "summary":
-            try:
-                summary = await llm_service.summarize_article(title, cleaned_content)
-                final_text = summary
-            except Exception as e:
-                logger.error(f"Summarization failed: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
+        # Stream processing generator
+        async def processing_stream_generator():
+            """Generator for streaming the entire processing pipeline."""
+            import json
 
-        # Skip Step 5: Enhancement - OpenAI TTS handles text formatting automatically
-
-        # Step 6: Stream audio generation
-        async def audio_stream_generator():
-            """Generator for streaming audio with metadata headers."""
-
-            # Send initial metadata
-            word_count = len(final_text.split())
-            reading_time = article_extractor.calculate_reading_time(final_text)
+            # Send initial article metadata
+            word_count = len(cleaned_content.split())
+            reading_time = article_extractor.calculate_reading_time(cleaned_content)
 
             initial_metadata = {
-                "type": "metadata",
+                "type": "article_metadata",
                 "title": title,
                 "word_count": word_count,
                 "reading_time": reading_time,
                 "mode": request.mode,
-                "url": str(request.url)
+                "url": str(request.url),
+                "status": "extracted"
             }
-
-            # Send metadata as JSON line
-            import json
             yield f"data: {json.dumps(initial_metadata)}\n\n".encode()
 
+            # Handle summary mode with streaming
+            nonlocal final_text
+            if request.mode == "summary":
+                try:
+                    # Send summary start signal
+                    summary_start = {
+                        "type": "summary_start",
+                        "message": "Starting AI summarization..."
+                    }
+                    yield f"data: {json.dumps(summary_start)}\n\n".encode()
+
+                    # Stream summary tokens as they are generated
+                    summary_tokens = []
+                    async for token in llm_service.summarize_article_streaming(title, cleaned_content):
+                        summary_tokens.append(token)
+
+                        # Send streaming summary token
+                        token_data = {
+                            "type": "summary_token",
+                            "token": token,
+                            "partial_summary": "".join(summary_tokens)
+                        }
+                        yield f"data: {json.dumps(token_data)}\n\n".encode()
+
+                    # Complete summary
+                    final_text = "".join(summary_tokens)
+
+                    summary_complete = {
+                        "type": "summary_complete",
+                        "final_summary": final_text,
+                        "message": "Summary generation completed"
+                    }
+                    yield f"data: {json.dumps(summary_complete)}\n\n".encode()
+
+                except Exception as e:
+                    error_data = {
+                        "type": "error",
+                        "error": f"Summarization failed: {str(e)}"
+                    }
+                    yield f"data: {json.dumps(error_data)}\n\n".encode()
+                    return
+
+            # Send audio generation start signal
+            audio_start = {
+                "type": "audio_start",
+                "message": "Starting audio generation...",
+                "text_length": len(final_text)
+            }
+            yield f"data: {json.dumps(audio_start)}\n\n".encode()
+
             # Stream audio chunks
-            async for audio_chunk, metadata in tts_service.generate_and_stream_audio(
-                final_text, user_id
-            ):
-                # Send audio chunk with metadata
-                chunk_data = {
-                    "type": "audio",
-                    "metadata": metadata
+            try:
+                async for audio_chunk, metadata in tts_service.generate_and_stream_audio(
+                    final_text, user_id
+                ):
+                    # Send audio chunk with metadata
+                    chunk_data = {
+                        "type": "audio",
+                        "metadata": metadata
+                    }
+                    yield f"data: {json.dumps(chunk_data)}\n\n".encode()
+
+                    # Send binary audio chunk if present
+                    if audio_chunk:
+                        yield audio_chunk
+
+            except Exception as e:
+                error_data = {
+                    "type": "error",
+                    "error": f"Audio generation failed: {str(e)}"
                 }
-
-                # Send metadata first, then binary audio data
-                yield f"data: {json.dumps(chunk_data)}\n\n".encode()
-
-                # Send binary audio chunk if present
-                if audio_chunk:
-                    yield audio_chunk
+                yield f"data: {json.dumps(error_data)}\n\n".encode()
+                return
 
             # Send completion signal
             completion_data = {
                 "type": "complete",
-                "message": "Audio generation completed"
+                "message": "Processing completed successfully"
             }
             yield f"data: {json.dumps(completion_data)}\n\n".encode()
 
         # Return streaming response
         return StreamingResponse(
-            audio_stream_generator(),
+            processing_stream_generator(),
             media_type="application/octet-stream",
             headers={
                 "Cache-Control": "no-cache",

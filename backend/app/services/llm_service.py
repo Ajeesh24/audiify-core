@@ -35,6 +35,74 @@ class LLMService:
             http_async_client=http_client
         )
 
+    async def summarize_article_streaming(
+        self,
+        title: str,
+        content: str,
+        max_length: Optional[int] = None
+    ):
+        """
+        Generate a comprehensive summary of an article with streaming.
+        Yields summary tokens as they are generated from OpenAI.
+
+        Args:
+            title: Article title
+            content: Article content to summarize
+            max_length: Maximum summary length in characters
+
+        Yields:
+            String tokens as they are generated
+        """
+        try:
+            # Prepare the prompt (same as non-streaming version)
+            system_prompt = """You are an expert content summarizer. Your task is to create comprehensive,
+            engaging summaries of articles that are perfect for audio narration.
+
+            Guidelines:
+            1. Create a summary that captures all key points and important details
+            2. Write in a natural, conversational tone suitable for listening
+            3. Maintain the original article's tone and style
+            4. Include relevant examples, statistics, or quotes when important
+            5. Structure the summary with clear flow between ideas
+            6. Aim for 3-5 paragraphs that tell a complete story
+            7. Avoid bullet points or lists - use narrative prose
+            8. Make it engaging and informative for audio consumption"""
+
+            length_guidance = ""
+            if max_length:
+                words = max_length // 5  # Rough estimate: 5 chars per word
+                length_guidance = f"Keep the summary to approximately {words} words."
+
+            human_prompt = f"""Please create a comprehensive summary of this article:
+
+            Title: {title}
+
+            Content: {content[:8000]}  # Limit input to avoid token limits
+
+            {length_guidance}
+
+            Focus on making this summary perfect for audio narration - natural, flowing, and engaging."""
+
+            # Create messages
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_prompt)
+            ]
+
+            # Stream summary tokens using LangChain streaming API
+            full_summary = ""
+            async for chunk in self.llm.astream(messages):
+                if hasattr(chunk, 'content') and chunk.content:
+                    token = chunk.content
+                    full_summary += token
+                    yield token
+
+            logger.info("Streaming summary generated successfully")
+
+        except Exception as e:
+            logger.error(f"Error generating streaming summary: {str(e)}")
+            raise Exception(f"Failed to generate streaming summary: {str(e)}")
+
     async def summarize_article(
         self,
         title: str,
