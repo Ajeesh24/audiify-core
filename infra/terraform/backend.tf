@@ -192,6 +192,11 @@ resource "aws_lambda_function" "backend" {
       COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
       COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
       COGNITO_REGION           = data.aws_region.current.name
+
+      # Lambda Web Adapter configuration for Function URL streaming
+      AWS_LWA_ENABLE_COMPRESSION = "true"
+      AWS_LWA_INVOKE_MODE       = "response_stream"
+      PORT                      = "8080"
     }
   }
 
