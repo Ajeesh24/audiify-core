@@ -54,7 +54,7 @@ class JobStartResponse(BaseModel):
 class JobStatusResponse(BaseModel):
     """Response for job status check."""
     job_id: str = Field(..., description="Job identifier")
-    status: Literal["processing", "completed", "error"] = Field(..., description="Current job status")
+    status: Literal["started", "processing", "completed", "error"] = Field(..., description="Current job status")
     progress: int = Field(0, description="Progress percentage (0-100)")
     step: Optional[str] = Field(None, description="Current processing step")
     result: Optional[ProcessArticleResponse] = Field(None, description="Final result if completed")
