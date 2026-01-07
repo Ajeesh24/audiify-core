@@ -224,7 +224,7 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
     allow_methods     = ["POST", "GET", "OPTIONS"]
     allow_headers     = ["*"]
     expose_headers    = ["*"]
-    # max_age_in_seconds removed - causing validation error
+    max_age           = 300  # Correct parameter name from AWS docs
   }
 }
 
