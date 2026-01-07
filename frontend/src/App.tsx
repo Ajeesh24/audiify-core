@@ -16,7 +16,7 @@ function AuthenticatedApp() {
   const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
-  const [useStreaming, setUseStreaming] = useState(true); // Default to streaming for better UX
+  const useStreaming = true; // Always use streaming for best performance
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const [progress, setProgress] = useState(0);
@@ -366,28 +366,6 @@ function AuthenticatedApp() {
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
-                </div>
-
-                {/* Streaming Toggle */}
-                <div className="flex items-center justify-center space-x-3">
-                  <span className="text-sm text-slate-400">Processing Mode:</span>
-                  <div className="flex items-center space-x-2">
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useStreaming}
-                        onChange={(e) => setUseStreaming(e.target.checked)}
-                        disabled={isProcessing}
-                        className="sr-only"
-                      />
-                      <div className={`relative w-11 h-6 rounded-full transition-colors ${useStreaming ? 'bg-purple-600' : 'bg-slate-600'}`}>
-                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${useStreaming ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </div>
-                      <span className="ml-2 text-sm text-slate-300">
-                        {useStreaming ? 'Streaming (Fast)' : 'Standard (Slower)'}
-                      </span>
-                    </label>
-                  </div>
                 </div>
 
                 {/* Generate Button */}

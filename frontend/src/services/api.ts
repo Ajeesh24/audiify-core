@@ -11,13 +11,26 @@ const getRuntimeApiUrl = () => {
   return import.meta.env.VITE_API_URL;
 };
 
-const API_BASE_URL = getRuntimeApiUrl() || 'http://localhost:8000/api';
+const getRuntimeStreamingUrl = () => {
+  // Check if runtime streaming URL is available (from env.js)
+  if (typeof window !== 'undefined' && (window as any).ENV?.VITE_STREAMING_API_URL) {
+    return (window as any).ENV.VITE_STREAMING_API_URL;
+  }
+  // Fall back to build-time environment variable
+  return import.meta.env.VITE_STREAMING_API_URL;
+};
 
-// Debug: Log the API URL being used
+const API_BASE_URL = getRuntimeApiUrl() || 'http://localhost:8000/api';
+const STREAMING_API_URL = getRuntimeStreamingUrl() || 'http://localhost:8000'; // Function URL (no /api prefix)
+
+// Debug: Log the API URLs being used
 console.log('API Configuration:', {
-  runtimeUrl: (window as any).ENV?.VITE_API_URL,
-  buildTimeUrl: import.meta.env.VITE_API_URL,
-  finalApiUrl: API_BASE_URL
+  runtimeApiUrl: (window as any).ENV?.VITE_API_URL,
+  runtimeStreamingUrl: (window as any).ENV?.VITE_STREAMING_API_URL,
+  buildTimeApiUrl: import.meta.env.VITE_API_URL,
+  buildTimeStreamingUrl: import.meta.env.VITE_STREAMING_API_URL,
+  finalApiUrl: API_BASE_URL,
+  finalStreamingUrl: STREAMING_API_URL
 });
 
 const apiClient = axios.create({
@@ -242,7 +255,8 @@ export const audifyApi = {
         return {};
       };
 
-      const response = await fetch(`${API_BASE_URL}/process-article-streaming`, {
+      // Use Function URL for streaming (better performance + native streaming support)
+      const response = await fetch(`${STREAMING_API_URL}/api/process-article-streaming`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

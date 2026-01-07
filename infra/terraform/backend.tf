@@ -208,6 +208,28 @@ resource "aws_lambda_function" "backend" {
   tags = local.common_tags
 }
 
+# Function URL for streaming endpoints (NEW!)
+resource "aws_lambda_function_url" "streaming_endpoint" {
+  function_name      = aws_lambda_function.backend.function_name
+  authorization_type = "NONE"  # Handle auth in FastAPI
+  invoke_mode        = "RESPONSE_STREAM"  # Enable streaming!
+
+  cors {
+    allow_credentials = true
+    allow_origins = [
+      "http://localhost:5173",                                    # Local development
+      "https://${aws_cloudfront_distribution.frontend.domain_name}",  # CloudFront distribution
+      var.domain_name != "" ? "https://${var.domain_name}" : ""   # Custom domain if configured
+    ]
+    allow_methods     = ["POST", "GET", "OPTIONS"]
+    allow_headers     = ["*"]
+    expose_headers    = ["*"]
+    max_age_seconds   = 300
+  }
+
+  tags = local.common_tags
+}
+
 # SQS Event Source Mapping for Lambda
 resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   event_source_arn = aws_sqs_queue.job_queue.arn

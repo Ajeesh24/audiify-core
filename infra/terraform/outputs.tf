@@ -45,13 +45,19 @@ output "lambda_function_arn" {
   value       = aws_lambda_function.backend.arn
 }
 
+# NEW: Function URL for streaming endpoints
+output "lambda_function_url" {
+  description = "Lambda Function URL for streaming endpoints"
+  value       = aws_lambda_function_url.streaming_endpoint.function_url
+}
+
 output "ecr_repository_url" {
   description = "ECR repository URL for Lambda container images"
   value       = data.aws_ecr_repository.lambda_backend.repository_url
 }
 
 output "backend_api_url" {
-  description = "Backend API URL (alias for api_gateway_url)"
+  description = "Backend API URL (alias_gateway_url)"
   value       = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
 }
 
@@ -119,10 +125,11 @@ output "cognito_region" {
 output "deployment_summary" {
   description = "Summary of deployed resources"
   value = {
-    frontend_url    = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
-    backend_api_url = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
-    environment     = var.environment
-    region          = data.aws_region.current.name
+    frontend_url       = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
+    backend_api_url    = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
+    streaming_api_url  = aws_lambda_function_url.streaming_endpoint.function_url  # NEW!
+    environment        = var.environment
+    region             = data.aws_region.current.name
     cognito = {
       user_pool_id     = aws_cognito_user_pool.main.id
       client_id        = aws_cognito_user_pool_client.main.id

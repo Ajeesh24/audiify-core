@@ -166,6 +166,12 @@ if __name__ == "__main__":
     )
 
 # Lambda handler for AWS Lambda deployment
+# Import Mangum for Lambda compatibility
+try:
+    from mangum import Mangum
+except ImportError:
+    Mangum = None
+
 # Check if running in Lambda environment
 if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
     # Disable lifespan events for Lambda (they don't work well with cold starts)
@@ -204,6 +210,7 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             "endpoints": {
                 "health": "/api/health",
                 "process_article": "/api/process-article",
+                "process_article_streaming": "/api/process-article-streaming",  # Available via Function URL
                 "stream_audio": "/api/audio/{audio_id}",
                 "validate_url": "/api/validate-url",
                 "voices": "/api/voices",
@@ -216,12 +223,13 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
 
     def lambda_handler(event, context):
         """
-        Hybrid Lambda handler that routes HTTP and SQS events appropriately.
+        Lambda handler that routes HTTP and SQS events appropriately.
+        Function URL requests will be handled by Lambda Web Adapter automatically.
         """
         import json
         import asyncio
 
-        # Check if this is an SQS event
+        # Check if this is an SQS event (preserve existing functionality)
         if 'Records' in event and len(event['Records']) > 0:
             # This is an SQS event - process background job
             logger.info(f"Processing SQS event with {len(event['Records'])} records")
@@ -271,7 +279,8 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             return {"statusCode": 200, "body": "SQS events processed"}
 
         else:
-            # This is an HTTP event - use Mangum (handles its own event loop)
+            # This is an HTTP event - use existing Mangum handler
+            # Function URL streaming requests are handled by Lambda Web Adapter extension
             return mangum_handler(event, context)
 else:
     # Create a dummy handler for non-Lambda environments

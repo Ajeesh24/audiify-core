@@ -1,5 +1,8 @@
-# Lambda-optimized Dockerfile for Audifyy Backend with UV for faster builds
+# Lambda-optimized Dockerfile with Function URL Streaming Support
 FROM public.ecr.aws/lambda/python:3.11
+
+# Add Lambda Web Adapter for Function URL streaming (doesn't interfere with existing functionality)
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 
 # Set environment variables for Lambda
 ENV PYTHONPATH=/var/task
@@ -34,5 +37,5 @@ COPY backend/ ${LAMBDA_TASK_ROOT}/
 RUN mkdir -p /tmp/audifyy && \
     chmod 755 /tmp/audifyy
 
-# Set the Lambda handler
+# Hybrid approach: Keep existing lambda handler (for SQS + regular HTTP)
 CMD ["app.main.lambda_handler"]
