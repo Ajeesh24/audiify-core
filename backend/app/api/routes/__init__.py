@@ -86,19 +86,9 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
                 job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
                 return
 
-        job_storage.update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
-
-        # Step 4: Enhance text for audio (optional)
-        try:
-            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
-            final_text = enhanced_text
-        except Exception as e:
-            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
-            # Continue with non-enhanced text
-
         job_storage.update_job_status(job_id, "processing", 80, "Generating audio...")
 
-        # Step 5: Generate audio
+        # Step 5: Generate audio (skip enhancement - OpenAI TTS handles formatting)
         try:
             audio_s3_key_or_path, audio_metadata = await tts_service.generate_audio(final_text, user_id)
         except Exception as e:
@@ -225,12 +215,7 @@ async def process_article_streaming(
                 logger.error(f"Summarization failed: {str(e)}")
                 raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
 
-        # Step 5: Enhance text for audio (optional)
-        try:
-            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
-            final_text = enhanced_text
-        except Exception as e:
-            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
+        # Skip Step 5: Enhancement - OpenAI TTS handles text formatting automatically
 
         # Step 6: Stream audio generation
         async def audio_stream_generator():
