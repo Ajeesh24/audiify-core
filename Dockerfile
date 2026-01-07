@@ -40,5 +40,6 @@ COPY backend/ ${LAMBDA_TASK_ROOT}/
 RUN mkdir -p /tmp/audifyy && \
     chmod 755 /tmp/audifyy
 
-# Revert to lambda handler - don't break existing API Gateway functionality
-CMD ["app.main.lambda_handler"]
+# Start uvicorn server for Lambda Web Adapter (Function URL streaming)
+# Lambda Web Adapter will detect environment and start the server
+CMD ["python", "app/main.py"]
