@@ -202,6 +202,100 @@ class TTSService:
             logger.error(f"Error generating audio: {str(e)}")
             raise Exception(f"Failed to generate audio: {str(e)}")
 
+    async def generate_audio_progressive(
+        self,
+        text: str,
+        user_id: str,
+        voice: str = "alloy",
+        model: str = "tts-1",
+        speed: float = 1.0,
+        format: str = "mp3"
+    ) -> tuple[str, Dict[str, Any]]:
+        """
+        Generate audio progressively with exponential chunk sizes.
+        Returns first chunk immediately, continues processing in background.
+
+        Chunk strategy: 15s → 40s → 80s → 160s → 320s
+        Creates single growing S3 file for seamless user experience.
+        """
+        try:
+            # Generate chunks with exponential sizes for fake streaming
+            chunks = self._create_exponential_chunks(text)
+            logger.info(f"Created {len(chunks)} exponential chunks for progressive generation")
+
+            # Generate unique ID for this audio
+            content_hash = hashlib.md5(f"{text}{voice}{model}{speed}".encode()).hexdigest()
+            audio_id = f"audio_{content_hash[:16]}"
+            audio_filename = f"{audio_id}.{format}"
+            s3_key = f"audio/user-{user_id}/{audio_filename}"
+
+            # Check if complete version already exists in S3
+            if self.bucket_name:
+                try:
+                    self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+                    logger.info(f"Complete audio already exists: {audio_id}")
+
+                    metadata = {
+                        "audio_id": audio_id,
+                        "voice": voice,
+                        "model": model,
+                        "speed": speed,
+                        "format": format,
+                        "cached": True,
+                        "s3_key": s3_key,
+                        "storage": "s3",
+                        "progressive": False,
+                        "total_chunks": len(chunks),
+                        "completed_chunks": len(chunks)
+                    }
+                    return s3_key, metadata
+                except ClientError as e:
+                    if e.response['Error']['Code'] != '404':
+                        logger.warning(f"S3 error checking for {audio_id}: {str(e)}")
+
+            # Generate first chunk immediately
+            logger.info(f"Generating first chunk immediately: {len(chunks[0])} characters")
+            first_chunk_audio = await self._generate_chunk_audio(chunks[0], voice, model, speed, format)
+
+            # Save first chunk to growing file path in /tmp
+            growing_file_path = os.path.join(self.temp_dir, audio_filename)
+            await self._save_audio_to_growing_file(growing_file_path, first_chunk_audio, is_first=True)
+
+            # Upload first chunk to S3 immediately
+            if self.bucket_name:
+                await self._upload_growing_file_to_s3(growing_file_path, s3_key)
+
+            # Prepare metadata for first chunk response
+            metadata = {
+                "audio_id": audio_id,
+                "voice": voice,
+                "model": model,
+                "speed": speed,
+                "format": format,
+                "cached": False,
+                "s3_key": s3_key,
+                "storage": "s3" if self.bucket_name else "local",
+                "progressive": len(chunks) > 1,
+                "total_chunks": len(chunks),
+                "completed_chunks": 1,
+                "expected_durations": [20, 40, 80, 160, 320][:len(chunks)]
+            }
+
+            # Start background processing for remaining chunks if any
+            if len(chunks) > 1:
+                logger.info(f"Starting background processing for {len(chunks) - 1} remaining chunks")
+                asyncio.create_task(
+                    self._process_remaining_chunks_progressive(
+                        chunks[1:], growing_file_path, s3_key, voice, model, speed, format, audio_id
+                    )
+                )
+
+            return s3_key if self.bucket_name else growing_file_path, metadata
+
+        except Exception as e:
+            logger.error(f"Error in progressive audio generation: {str(e)}")
+            raise Exception(f"Failed to generate progressive audio: {str(e)}")
+
     def get_audio_url(self, audio_id: str, user_id: str, expires_in: int = 3600) -> Optional[str]:
         """
         Get a URL to access the audio file (S3 presigned URL or local path).
@@ -394,3 +488,146 @@ class TTSService:
             }
         except OSError:
             return {"exists": False}
+
+    def _create_exponential_chunks(self, text: str) -> list[str]:
+        """
+        Create exponential chunks for progressive audio generation.
+
+        Chunk durations: 15s → 40s → 80s → 160s → 320s
+        Approximate words per second: 2.5 (conversational speed)
+        """
+        words = text.split()
+        if len(words) == 0:
+            return [text]
+
+        # Target durations in seconds with exponential growth
+        target_durations = [15, 40, 80, 160, 320]
+        words_per_second = 2.5
+
+        chunks = []
+        start_idx = 0
+
+        for target_seconds in target_durations:
+            if start_idx >= len(words):
+                break
+
+            target_words = int(target_seconds * words_per_second)
+            end_idx = min(start_idx + target_words, len(words))
+
+            # Find good breaking point (sentence boundary)
+            chunk_text = ' '.join(words[start_idx:end_idx])
+
+            # Look for sentence ending near the end to avoid cutting mid-sentence
+            if end_idx < len(words):
+                remaining_text = ' '.join(words[start_idx:min(end_idx + 20, len(words))])
+                for delimiter in ['. ', '! ', '? ', '\n']:
+                    delimiter_pos = remaining_text.find(delimiter, len(chunk_text) - 50)
+                    if delimiter_pos != -1 and delimiter_pos > len(chunk_text) * 0.8:
+                        chunk_text = remaining_text[:delimiter_pos + len(delimiter.strip())]
+                        end_idx = start_idx + len(chunk_text.split())
+                        break
+
+            if chunk_text.strip():
+                chunks.append(chunk_text.strip())
+                start_idx = end_idx
+            else:
+                break
+
+        # Add remaining text as final chunk if any
+        if start_idx < len(words):
+            remaining_chunk = ' '.join(words[start_idx:])
+            if remaining_chunk.strip():
+                chunks.append(remaining_chunk.strip())
+
+        logger.info(f"Split text into {len(chunks)} exponential chunks: {[len(c.split()) for c in chunks]} words")
+        return chunks
+
+    async def _generate_chunk_audio(self, text: str, voice: str, model: str, speed: float, format: str) -> bytes:
+        """Generate audio for a single text chunk."""
+        try:
+            response = await self.openai_client.audio.speech.create(
+                model=model,
+                voice=voice,
+                input=text,
+                speed=speed,
+                response_format=format
+            )
+            return response.content
+        except Exception as e:
+            logger.error(f"Error generating chunk audio: {str(e)}")
+            raise
+
+    async def _save_audio_to_growing_file(self, file_path: str, audio_data: bytes, is_first: bool = False):
+        """Save audio data to growing file, appending if not first chunk."""
+        try:
+            if is_first:
+                # First chunk: create new file
+                async with aiofiles.open(file_path, 'wb') as f:
+                    await f.write(audio_data)
+                logger.info(f"Created new growing file: {file_path} ({len(audio_data)} bytes)")
+            else:
+                # Subsequent chunks: append to existing file
+                # Note: For MP3, we should use proper audio concatenation
+                # For now, we'll use simple byte concatenation (works for many cases)
+                async with aiofiles.open(file_path, 'ab') as f:
+                    await f.write(audio_data)
+                logger.info(f"Appended to growing file: {file_path} (+{len(audio_data)} bytes)")
+        except Exception as e:
+            logger.error(f"Error saving audio to growing file: {str(e)}")
+            raise
+
+    async def _upload_growing_file_to_s3(self, local_path: str, s3_key: str):
+        """Upload the current state of growing file to S3."""
+        try:
+            async with aiofiles.open(local_path, 'rb') as f:
+                file_data = await f.read()
+
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=file_data,
+                ContentType="audio/mp3",
+                ContentDisposition=f"inline; filename={os.path.basename(s3_key)}"
+            )
+
+            logger.info(f"Uploaded growing file to S3: {s3_key} ({len(file_data)} bytes)")
+        except Exception as e:
+            logger.error(f"Error uploading growing file to S3: {str(e)}")
+            raise
+
+    async def _process_remaining_chunks_progressive(
+        self,
+        remaining_chunks: list[str],
+        growing_file_path: str,
+        s3_key: str,
+        voice: str,
+        model: str,
+        speed: float,
+        format: str,
+        audio_id: str
+    ):
+        """Process remaining chunks in background, growing the file progressively."""
+        try:
+            for i, chunk_text in enumerate(remaining_chunks, start=2):  # Start from chunk 2
+                logger.info(f"Processing background chunk {i} for {audio_id}")
+
+                # Generate audio for this chunk
+                chunk_audio = await self._generate_chunk_audio(chunk_text, voice, model, speed, format)
+
+                # Append to growing file
+                await self._save_audio_to_growing_file(growing_file_path, chunk_audio, is_first=False)
+
+                # Upload updated file to S3 (overwrites previous)
+                if self.bucket_name:
+                    await self._upload_growing_file_to_s3(growing_file_path, s3_key)
+
+                logger.info(f"Completed chunk {i}/{len(remaining_chunks) + 1} for {audio_id}")
+
+                # Small delay to prevent overwhelming OpenAI API
+                await asyncio.sleep(0.5)
+
+            logger.info(f"Completed all progressive chunks for {audio_id}")
+
+        except Exception as e:
+            logger.error(f"Error in background chunk processing for {audio_id}: {str(e)}")
+            # Don't raise - this is background processing

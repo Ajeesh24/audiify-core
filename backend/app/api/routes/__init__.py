@@ -96,17 +96,21 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             logger.warning(f"Audio enhancement failed, using original: {str(e)}")
             # Continue with non-enhanced text
 
-        job_storage.update_job_status(job_id, "processing", 80, "Generating audio...")
+        job_storage.update_job_status(job_id, "processing", 80, "Generating audio progressively...")
 
-        # Step 5: Generate audio
+        # Step 5: Generate audio progressively (fast first chunk, background processing)
         try:
-            audio_s3_key_or_path, audio_metadata = await tts_service.generate_audio(final_text, user_id)
+            audio_s3_key_or_path, audio_metadata = await tts_service.generate_audio_progressive(final_text, user_id)
         except Exception as e:
-            logger.error(f"TTS generation failed: {str(e)}")
+            logger.error(f"Progressive TTS generation failed: {str(e)}")
             job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate audio: {str(e)}")
             return
 
-        job_storage.update_job_status(job_id, "processing", 95, "Finalizing...")
+        # If progressive, update job with partial audio info
+        if audio_metadata.get("progressive", False):
+            job_storage.update_job_status(job_id, "processing", 90, "Audio available, continuing background processing...")
+        else:
+            job_storage.update_job_status(job_id, "processing", 95, "Finalizing...")
 
         # Calculate metadata
         word_count = len(final_text.split())
@@ -121,7 +125,7 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             estimated_reading_time=reading_time
         )
 
-        # Create audio response - don't include static URL, it will be generated on-demand
+        # Create audio response with progressive metadata
         audio_response = AudioResponse(
             audio_id=audio_metadata["audio_id"],
             duration=None,  # Could calculate with audio analysis
@@ -135,7 +139,14 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             success=True,
             article=article_content,
             audio=audio_response,
-            error=None
+            error=None,
+            # Add progressive audio metadata to result for frontend use
+            progressive_audio={
+                "is_progressive": audio_metadata.get("progressive", False),
+                "total_chunks": audio_metadata.get("total_chunks", 1),
+                "completed_chunks": audio_metadata.get("completed_chunks", 1),
+                "expected_durations": audio_metadata.get("expected_durations", [])
+            } if audio_metadata.get("progressive") else None
         )
 
         job_storage.update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
@@ -302,6 +313,60 @@ async def stream_audio(
     except Exception as e:
         logger.error(f"Error streaming audio {audio_id} for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to stream audio")
+
+
+@router.get("/audio/{audio_id}/progress")
+async def get_audio_progress(
+    audio_id: str,
+    user_id: str = Depends(get_user_id)
+):
+    """
+    Get progressive audio generation status.
+    Returns chunk completion info for seamless frontend transitions.
+    """
+    try:
+        # Use TTS service to get the audio URL with user verification
+        audio_url = tts_service.get_audio_url(audio_id, user_id)
+
+        if not audio_url:
+            raise HTTPException(status_code=404, detail="Audio file not found or access denied")
+
+        # Check if audio file has grown (basic implementation)
+        # In a production system, you might store this metadata in DynamoDB
+        file_size = None
+        last_modified = None
+
+        if audio_url.startswith('http'):
+            # For S3 URLs, we'd need to make a HEAD request to check size/modification
+            # For now, return basic info
+            return {
+                "audio_id": audio_id,
+                "url": audio_url,
+                "file_size": file_size,
+                "last_modified": last_modified,
+                "status": "available",  # Could be "growing", "complete", "available"
+                "message": "Audio file is available for streaming"
+            }
+        else:
+            # For local files, check actual file stats
+            if os.path.exists(audio_url):
+                stat = os.stat(audio_url)
+                return {
+                    "audio_id": audio_id,
+                    "url": audio_url,
+                    "file_size": stat.st_size,
+                    "last_modified": stat.st_mtime,
+                    "status": "available",
+                    "message": "Audio file is available for streaming"
+                }
+            else:
+                raise HTTPException(status_code=404, detail="Audio file not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting audio progress for {audio_id} (user {user_id}): {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get audio progress")
 
 
 @router.get("/my-articles")

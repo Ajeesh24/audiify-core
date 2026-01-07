@@ -121,6 +121,15 @@ export interface AudioResponse {
   expires_at?: string;
 }
 
+export interface AudioProgressResponse {
+  audio_id: string;
+  url: string;
+  file_size?: number;
+  last_modified?: number;
+  status: 'available' | 'growing' | 'complete';
+  message: string;
+}
+
 export interface ProcessArticleResponse {
   success: boolean;
   article?: ArticleContent;
@@ -266,6 +275,12 @@ export const audifyApi = {
   async getAudioPresignedUrl(audioId: string): Promise<string> {
     const response = await apiClient.get(`/audio/${audioId}/url`);
     return response.data.url;
+  },
+
+  // Get progressive audio generation status (requires authentication)
+  async getAudioProgress(audioId: string): Promise<AudioProgressResponse> {
+    const response = await apiClient.get(`/audio/${audioId}/progress`);
+    return response.data;
   },
 
   // Get direct audio URL from job result (prefers S3 URL)
