@@ -40,6 +40,5 @@ COPY backend/ ${LAMBDA_TASK_ROOT}/
 RUN mkdir -p /tmp/audifyy && \
     chmod 755 /tmp/audifyy
 
-# For Function URL streaming: Start FastAPI server directly (Web Adapter will intercept)
-# For API Gateway: Lambda will call the handler
-CMD ["python", "app/main.py"]
+# Revert to lambda handler - don't break existing API Gateway functionality
+CMD ["app.main.lambda_handler"]
