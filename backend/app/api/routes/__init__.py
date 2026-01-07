@@ -182,18 +182,14 @@ async def validate_url(request: dict):
 
 @router.post("/process-article-streaming")
 async def process_article_streaming(
-    request: ArticleProcessRequest
-    # Temporarily remove auth requirement to test Function URL 403 issue
-    # user_id: str = Depends(get_user_id)
+    request: ArticleProcessRequest,
+    user_id: str = Depends(get_user_id)  # RESTORE auth requirement - needed for user data
 ):
     """
     Stream article processing with real-time audio generation.
     Returns audio chunks as they're generated while building complete file in S3.
     """
     try:
-        # Temporary: Use default user_id for Function URL testing
-        user_id = "test-user"  # TODO: Restore proper auth after Function URL 403 is fixed
-
         logger.info(f"Starting streaming processing for user {user_id}: {request.url} (mode: {request.mode})")
 
         # Step 1: Validate URL
