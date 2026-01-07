@@ -222,7 +222,8 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   cors {
     allow_credentials = true
     allow_origins = [
-      "*"  # Temporarily allow all origins for testing - should be restricted in production
+      "http://localhost:5173",                                      # Local development
+      "https://${aws_cloudfront_distribution.frontend.domain_name}" # CloudFront distribution only
     ]
     allow_methods     = ["POST", "GET"]
     allow_headers     = ["*"]
@@ -233,7 +234,7 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
 
 # Required permissions for Function URL with NONE auth type (as per AWS docs)
 resource "aws_lambda_permission" "function_url_invoke_url" {
-  statement_id           = "FunctionURLAllowPublicAccess"
+  statement_id           = "AllowFunctionURLInvoke-${var.environment}"
   action                 = "lambda:InvokeFunctionUrl"
   function_name          = aws_lambda_function.backend.function_name
   principal              = "*"
@@ -241,7 +242,7 @@ resource "aws_lambda_permission" "function_url_invoke_url" {
 }
 
 resource "aws_lambda_permission" "function_url_invoke_function" {
-  statement_id  = "FunctionURLInvokeAllowPublicAccess"
+  statement_id  = "AllowFunctionURLInvokeFunction-${var.environment}"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.backend.function_name
   principal     = "*"
