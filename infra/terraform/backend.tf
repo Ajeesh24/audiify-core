@@ -192,6 +192,9 @@ resource "aws_lambda_function" "backend" {
       COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
       COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
       COGNITO_REGION           = data.aws_region.current.name
+      # Logging configuration
+      LOG_LEVEL                = "INFO"
+      PYTHONUNBUFFERED         = "1"
     }
   }
 
