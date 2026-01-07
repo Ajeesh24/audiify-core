@@ -256,7 +256,12 @@ export const audifyApi = {
       };
 
       // Use Function URL for streaming (better performance + native streaming support)
-      const response = await fetch(`${STREAMING_API_URL}/api/process-article-streaming`, {
+      // Handle trailing slash in STREAMING_API_URL to avoid double slashes
+      const streamingBaseUrl = STREAMING_API_URL.endsWith('/')
+        ? STREAMING_API_URL.slice(0, -1)
+        : STREAMING_API_URL;
+
+      const response = await fetch(`${streamingBaseUrl}/api/process-article-streaming`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

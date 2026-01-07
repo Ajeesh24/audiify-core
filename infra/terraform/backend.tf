@@ -217,11 +217,9 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   cors {
     allow_credentials = true
     allow_origins = [
-      "http://localhost:5173",                                    # Local development
-      "https://${aws_cloudfront_distribution.frontend.domain_name}",  # CloudFront distribution
-      var.domain_name != "" ? "https://${var.domain_name}" : ""   # Custom domain if configured
+      "*"  # Temporarily allow all origins for testing - should be restricted in production
     ]
-    allow_methods     = ["POST", "GET"]  # Removed OPTIONS (7 chars exceeds 6 char limit)
+    allow_methods     = ["POST", "GET"]
     allow_headers     = ["*"]
     expose_headers    = ["*"]
     max_age           = 300
