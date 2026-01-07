@@ -221,7 +221,14 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   authorization_type = "NONE"  # Handle auth in FastAPI
   invoke_mode        = "RESPONSE_STREAM"  # Enable streaming!
 
-  # No CORS config - let FastAPI handle all CORS to avoid duplicate headers
+  cors {
+    allow_credentials = false  # Can't use credentials with wildcard
+    allow_origins = ["*"]  # Temporary fix - allow all origins
+    allow_methods     = ["POST", "GET", "OPTIONS"]
+    allow_headers     = ["*"]
+    expose_headers    = ["*"]
+    max_age           = 300
+  }
 }
 
 # Required permissions for Function URL with NONE auth type (as per AWS docs)

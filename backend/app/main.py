@@ -65,13 +65,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
+# Add CORS middleware - TEMPORARILY DISABLED to avoid Function URL conflicts
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=settings.cors_origins,
+#     allow_methods=["GET", "POST"],
+#     allow_headers=["*"],
+# )
 
 # Add trusted host middleware for security
 if not settings.debug:
@@ -199,13 +199,13 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         # No lifespan for Lambda
     )
 
-    # Add the same middleware and routes
-    app_for_lambda.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["*"],
-    )
+    # Add the same middleware and routes - CORS DISABLED to avoid Function URL conflicts
+    # app_for_lambda.add_middleware(
+    #     CORSMiddleware,
+    #     allow_origins=settings.cors_origins,
+    #     allow_methods=["GET", "POST"],
+    #     allow_headers=["*"],
+    # )
 
     # Simplified rate limiting for Lambda
     limiter_lambda = Limiter(key_func=get_remote_address)
