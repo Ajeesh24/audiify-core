@@ -231,7 +231,7 @@ resource "aws_lambda_function_url" "streaming_endpoint" {
   cors {
     allow_credentials = false  # Can't use credentials with wildcard
     allow_origins = ["*"]  # Temporary fix - allow all origins
-    allow_methods     = ["POST", "GET", "OPTIONS"]
+    allow_methods     = ["POST", "GET"]  # Remove OPTIONS - exceeds 6 char limit
     allow_headers     = ["*"]
     expose_headers    = ["*"]
     max_age           = 300
