@@ -199,6 +199,13 @@ resource "aws_lambda_function" "backend" {
       AWS_LWA_ENABLE_COMPRESSION = "true"
       AWS_LWA_INVOKE_MODE       = "response_stream"
       PORT                      = "8080"
+
+      # Enhanced logging for debugging
+      AWS_LWA_LOG_LEVEL         = "info"
+      PYTHONUNBUFFERED          = "1"
+
+      # CloudWatch logging
+      AWS_LAMBDA_LOG_LEVEL      = "INFO"
     }
   }
 

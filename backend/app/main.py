@@ -162,16 +162,26 @@ if __name__ == "__main__":
     if os.environ.get("AWS_LAMBDA_FUNCTION_NAME") and os.environ.get("AWS_LWA_ENABLE_COMPRESSION"):
         # Running in Lambda with Web Adapter - start server for Function URL requests
         port = int(os.environ.get("PORT", 8080))
-        logger.info(f"Starting FastAPI server for Lambda Web Adapter on port {port}")
-        uvicorn.run(
-            app,  # Use the main app (not app_for_lambda) for streaming support
-            host="0.0.0.0",
-            port=port,
-            reload=False,
-            log_level="info"
-        )
+        logger.info(f"🚀 LAMBDA WEB ADAPTER: Starting FastAPI server on port {port}")
+        logger.info(f"📋 Environment: AWS_LAMBDA_FUNCTION_NAME={os.environ.get('AWS_LAMBDA_FUNCTION_NAME')}")
+        logger.info(f"📋 Environment: AWS_LWA_INVOKE_MODE={os.environ.get('AWS_LWA_INVOKE_MODE')}")
+        logger.info(f"📋 Environment: PORT={port}")
+
+        try:
+            uvicorn.run(
+                app,  # Use the main app (not app_for_lambda) for streaming support
+                host="0.0.0.0",
+                port=port,
+                reload=False,
+                log_level="info",
+                access_log=True
+            )
+        except Exception as e:
+            logger.error(f"❌ LAMBDA WEB ADAPTER ERROR: Failed to start server: {str(e)}")
+            raise
     else:
         # Running locally
+        logger.info("🏠 LOCAL DEVELOPMENT: Starting FastAPI server")
         uvicorn.run(
             "app.main:app",
             host=settings.host,
