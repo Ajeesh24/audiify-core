@@ -4,7 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Play, Clock, ExternalLink, Calendar, Bookmark, Volume2 } from 'lucide-react';
 import { audifyApi, AudioResponse } from '@/services/api';
-import AudioPlayer from './AudioPlayer';
+import ProgressiveAudioPlayer from './ProgressiveAudioPlayer';
 
 interface Article {
   job_id: string;
@@ -270,10 +270,11 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
                 </svg>
               </button>
 
-              <AudioPlayer
+              <ProgressiveAudioPlayer
                 audio={playingAudio.audio}
                 title={playingAudio.title}
                 mode="full"
+                progressiveAudio={null}
               />
             </motion.div>
           </motion.div>
