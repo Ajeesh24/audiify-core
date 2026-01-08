@@ -52,8 +52,10 @@ export default function ProgressiveAudioPlayer({
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [isProgressive, setIsProgressive] = useState(false);
   const [progressiveComplete, setProgressiveComplete] = useState(false);
-  const [lastFileSize, setLastFileSize] = useState<number | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Use ref to track lastFileSize to avoid dependency issues
+  const lastFileSizeRef = useRef<number | null>(null);
 
   // Get the audio element (simplified - single element now)
   const getActiveAudioElement = useCallback(() => {
@@ -123,17 +125,19 @@ export default function ProgressiveAudioPlayer({
         console.log('📊 Progressive audio progress:', progress);
 
         // Check if file has grown
-        if (progress.file_size && progress.file_size !== lastFileSize) {
+        if (progress.file_size && progress.file_size !== lastFileSizeRef.current) {
           console.log('📈 Audio file has grown:', {
-            oldSize: lastFileSize,
+            oldSize: lastFileSizeRef.current,
             newSize: progress.file_size,
-            difference: progress.file_size - (lastFileSize || 0)
+            difference: progress.file_size - (lastFileSizeRef.current || 0)
           });
 
-          setLastFileSize(progress.file_size);
+          const previousFileSize = lastFileSizeRef.current;
+          lastFileSizeRef.current = progress.file_size;
 
           // Automatically update audio with extended content (no user action needed)
-          if (lastFileSize !== null) { // Don't update on first detection
+          if (previousFileSize !== null) { // Don't update on first detection
+            console.log('🔄 Triggering automatic background audio update...');
             await updateAudioWithExtendedContent(progress.url);
           }
         }
@@ -152,7 +156,7 @@ export default function ProgressiveAudioPlayer({
     }, 2000); // Poll every 2 seconds
 
     setPollingInterval(interval);
-  }, [audio.audio_id, lastFileSize]);
+  }, [audio.audio_id]);
 
   // Automatically update audio with extended content (seamless, no user action)
   const updateAudioWithExtendedContent = async (progressUrl: string) => {
