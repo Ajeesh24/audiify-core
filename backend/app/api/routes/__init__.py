@@ -350,22 +350,31 @@ async def get_audio_progress(
 
         if audio_url.startswith('http'):
             # For S3 URLs, make a HEAD request to check size/modification
+            logger.info(f"Attempting S3 HEAD request for: {audio_url}")
             try:
                 import requests
                 response = requests.head(audio_url, timeout=10)
+                logger.info(f"HEAD request status: {response.status_code}")
+                logger.info(f"HEAD request headers: {dict(response.headers)}")
+
                 if response.status_code == 200:
                     file_size = response.headers.get('Content-Length')
+                    logger.info(f"Raw Content-Length header: {file_size}")
                     if file_size:
                         file_size = int(file_size)
+                        logger.info(f"Parsed file_size: {file_size}")
                     last_modified_str = response.headers.get('Last-Modified')
                     if last_modified_str:
                         from datetime import datetime
                         last_modified = datetime.strptime(last_modified_str, '%a, %d %b %Y %H:%M:%S %Z').timestamp()
+                else:
+                    logger.warning(f"HEAD request failed with status: {response.status_code}")
             except Exception as e:
-                logger.warning(f"Failed to get S3 file info via HEAD request: {str(e)}")
+                logger.error(f"Failed to get S3 file info via HEAD request: {str(e)}", exc_info=True)
                 # Fall back to basic info
                 pass
 
+            logger.info(f"Final file_size value: {file_size}")
             return {
                 "audio_id": audio_id,
                 "url": audio_url,
