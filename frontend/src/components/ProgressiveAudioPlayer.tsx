@@ -139,7 +139,7 @@ export default function ProgressiveAudioPlayer({
           if (previousFileSize !== null) { // Don't update on first detection
             console.log('🔄 Triggering automatic background audio update...');
             console.log('📍 About to call updateAudioWithExtendedContent function');
-            await updateAudioWithExtendedContent();
+            await updateAudioWithExtendedContent(progress.url);
           }
         }
 
@@ -160,13 +160,13 @@ export default function ProgressiveAudioPlayer({
   }, [audio.audio_id]);
 
   // Automatically update audio with extended content (simple cache-busting approach)
-  const updateAudioWithExtendedContent = async () => {
+  const updateAudioWithExtendedContent = async (freshUrl: string) => {
     try {
       const audioElement = getActiveAudioElement();
       if (!audioElement) return;
 
-      if (!audioUrl) {
-        console.warn('❌ Cannot refresh audio: audioUrl is empty');
+      if (!freshUrl) {
+        console.warn('❌ Cannot refresh audio: freshUrl is empty');
         return;
       }
 
@@ -179,7 +179,7 @@ export default function ProgressiveAudioPlayer({
         currentTime: currentTime.toFixed(2),
         wasPlaying,
         originalDuration: originalDuration?.toFixed(2),
-        currentAudioUrl: audioUrl.substring(0, 100) + '...'
+        freshUrl: freshUrl.substring(0, 100) + '...'
       });
 
       // Pause briefly during refresh
@@ -187,9 +187,9 @@ export default function ProgressiveAudioPlayer({
         audioElement.pause();
       }
 
-      // Use existing audioUrl with cache busting - same S3 file, now longer!
-      const separator = audioUrl.includes('?') ? '&' : '?';
-      const refreshedUrl = audioUrl + separator + 'refresh=' + Date.now();
+      // Use fresh URL with cache busting - same S3 file, now longer!
+      const separator = freshUrl.includes('?') ? '&' : '?';
+      const refreshedUrl = freshUrl + separator + 'refresh=' + Date.now();
       console.log('🔗 Refreshed URL:', refreshedUrl.substring(0, 100) + '...');
       audioElement.src = refreshedUrl;
 
