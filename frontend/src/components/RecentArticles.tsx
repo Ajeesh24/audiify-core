@@ -30,34 +30,59 @@ interface RecentArticlesProps {
 export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [lastKey, setLastKey] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [playingAudio, setPlayingAudio] = useState<{
     audioId: string;
     audio: AudioResponse;
     title: string;
   } | null>(null);
 
-  const fetchArticles = async () => {
+  const fetchArticles = async (reset: boolean = true) => {
     try {
-      setLoading(true);
+      if (reset) {
+        setLoading(true);
+        setArticles([]);
+        setLastKey(null);
+      }
       setError(null);
-      const response = await audifyApi.getMyArticles();
-      // Sort articles by created_at in descending order (newest first)
-      const sortedArticles = response.articles.sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setArticles(sortedArticles);
+
+      // Fetch first 5 articles initially, or use pagination
+      const limit = reset ? 5 : 5;
+      const currentLastKey = reset ? null : lastKey;
+
+      const response = await audifyApi.getMyArticles(currentLastKey, limit);
+
+      if (reset) {
+        setArticles(response.articles);
+      } else {
+        setArticles(prev => [...prev, ...response.articles]);
+      }
+
+      setHasMore(response.pagination.has_more);
+      setLastKey(response.pagination.last_key);
+      setTotalCount(response.pagination.total_returned);
     } catch (err) {
       console.error('Failed to fetch articles:', err);
       setError('Failed to load articles');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchArticles();
+    fetchArticles(true);
   }, [refreshTrigger]); // Refresh when new articles are added
+
+  const loadMoreArticles = async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    await fetchArticles(false);
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -134,7 +159,7 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
                 <div>
                   <h2 className="text-lg sm:text-xl font-semibold text-white">Recent Articles</h2>
                   <p className="text-slate-400 text-xs sm:text-sm">
-                    {articles.length} article{articles.length !== 1 ? 's' : ''} converted to audio
+                    {articles.length}{hasMore ? '+' : ''} of {totalCount ? `${totalCount}+` : articles.length} articles converted
                   </p>
                 </div>
               </div>
@@ -239,6 +264,27 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
                 </AnimatePresence>
               )}
             </div>
+
+            {/* Load More Button */}
+            {hasMore && articles.length > 0 && (
+              <div className="mt-4 sm:mt-6 text-center">
+                <Button
+                  onClick={loadMoreArticles}
+                  disabled={loadingMore}
+                  variant="outline"
+                  className="bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white border-slate-600/40 hover:border-slate-500/60"
+                >
+                  {loadingMore ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mr-2" />
+                      Loading more...
+                    </>
+                  ) : (
+                    `Load More Articles`
+                  )}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

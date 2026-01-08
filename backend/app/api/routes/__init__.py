@@ -87,15 +87,18 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
                 job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
                 return
 
-        job_storage.update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
-
-        # Step 4: Enhance text for audio (optional)
-        try:
-            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
-            final_text = enhanced_text
-        except Exception as e:
-            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
-            # Continue with non-enhanced text
+        # Step 4: Enhance text for audio (only for summaries - full articles don't need enhancement)
+        if request.mode == "summary":
+            job_storage.update_job_status(job_id, "processing", 70, "Enhancing summary for audio...")
+            try:
+                enhanced_text = await llm_service.enhance_content_for_audio(final_text)
+                final_text = enhanced_text
+            except Exception as e:
+                logger.warning(f"Audio enhancement failed, using original: {str(e)}")
+                # Continue with non-enhanced text
+        else:
+            # Skip enhancement for full articles - OpenAI TTS handles natural speech well
+            logger.info("Skipping LLM enhancement for full article - using original content")
 
         job_storage.update_job_status(job_id, "processing", 80, "Generating audio progressively...")
 
@@ -406,11 +409,11 @@ async def get_my_articles(
                     'job_id': job['job_id'],
                     'created_at': job['created_at'],
                     'updated_at': job['updated_at'],
-                    'url': result.get('article', {}).get('url'),
+                    'url': job.get('request_data', {}).get('url'),  # Get URL from request_data
                     'title': result.get('article', {}).get('title'),
                     'word_count': result.get('article', {}).get('word_count', 0),
                     'estimated_reading_time': result.get('article', {}).get('estimated_reading_time', 0),
-                    'mode': 'summary' if result.get('article', {}).get('summary') else 'full',
+                    'mode': job.get('request_data', {}).get('mode', 'full'),  # Get mode from request_data
                     'audio': audio_data
                 }
                 articles.append(article_data)
