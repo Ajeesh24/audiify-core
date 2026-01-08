@@ -1,5 +1,13 @@
-from typing import Optional, Literal
+from typing import Optional, Literal, Dict, List, Any
 from pydantic import BaseModel, HttpUrl, Field
+
+
+class ProgressiveAudioMetadata(BaseModel):
+    """Progressive audio metadata for frontend use."""
+    is_progressive: bool = Field(..., description="Whether this audio is being generated progressively")
+    total_chunks: int = Field(..., description="Total number of chunks")
+    completed_chunks: int = Field(..., description="Number of completed chunks")
+    expected_durations: List[int] = Field(..., description="Expected duration for each chunk in seconds")
 
 
 class ArticleProcessRequest(BaseModel):
@@ -42,6 +50,7 @@ class ProcessArticleResponse(BaseModel):
     article: Optional[ArticleContent] = Field(None, description="Article content")
     audio: Optional[AudioResponse] = Field(None, description="Audio information")
     error: Optional[str] = Field(None, description="Error message if failed")
+    progressive_audio: Optional[ProgressiveAudioMetadata] = Field(None, description="Progressive audio metadata for frontend")
 
 
 class JobStartResponse(BaseModel):
