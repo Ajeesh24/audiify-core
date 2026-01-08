@@ -87,15 +87,18 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
                 job_storage.update_job_status(job_id, "error", 0, error=f"Failed to generate summary: {str(e)}")
                 return
 
-        job_storage.update_job_status(job_id, "processing", 70, "Enhancing content for audio...")
-
-        # Step 4: Enhance text for audio (optional)
-        try:
-            enhanced_text = await llm_service.enhance_content_for_audio(final_text)
-            final_text = enhanced_text
-        except Exception as e:
-            logger.warning(f"Audio enhancement failed, using original: {str(e)}")
-            # Continue with non-enhanced text
+        # Step 4: Enhance text for audio (only for summaries - full articles don't need enhancement)
+        if request.mode == "summary":
+            job_storage.update_job_status(job_id, "processing", 70, "Enhancing summary for audio...")
+            try:
+                enhanced_text = await llm_service.enhance_content_for_audio(final_text)
+                final_text = enhanced_text
+            except Exception as e:
+                logger.warning(f"Audio enhancement failed, using original: {str(e)}")
+                # Continue with non-enhanced text
+        else:
+            # Skip enhancement for full articles - OpenAI TTS handles natural speech well
+            logger.info("Skipping LLM enhancement for full article - using original content")
 
         job_storage.update_job_status(job_id, "processing", 80, "Generating audio progressively...")
 
