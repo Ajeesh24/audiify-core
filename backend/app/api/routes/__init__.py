@@ -159,7 +159,7 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             progressive_audio=progressive_audio_data
         )
 
-        logger.info(f"Final result progressive_audio: {result.get('progressive_audio') if hasattr(result, 'get') else 'N/A'}")
+        logger.info(f"Final result progressive_audio: {result.progressive_audio if hasattr(result, 'progressive_audio') else 'N/A'}")
 
         job_storage.update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
 
@@ -349,8 +349,23 @@ async def get_audio_progress(
         last_modified = None
 
         if audio_url.startswith('http'):
-            # For S3 URLs, we'd need to make a HEAD request to check size/modification
-            # For now, return basic info
+            # For S3 URLs, make a HEAD request to check size/modification
+            try:
+                import requests
+                response = requests.head(audio_url, timeout=10)
+                if response.status_code == 200:
+                    file_size = response.headers.get('Content-Length')
+                    if file_size:
+                        file_size = int(file_size)
+                    last_modified_str = response.headers.get('Last-Modified')
+                    if last_modified_str:
+                        from datetime import datetime
+                        last_modified = datetime.strptime(last_modified_str, '%a, %d %b %Y %H:%M:%S %Z').timestamp()
+            except Exception as e:
+                logger.warning(f"Failed to get S3 file info via HEAD request: {str(e)}")
+                # Fall back to basic info
+                pass
+
             return {
                 "audio_id": audio_id,
                 "url": audio_url,
