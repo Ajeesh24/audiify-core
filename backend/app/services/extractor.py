@@ -29,6 +29,54 @@ class ArticleExtractor:
         # Disable SSL verification for corporate environments
         self.session.verify = False
 
+        # Pre-compile regex patterns for better performance
+        self._compile_cleaning_patterns()
+
+        # Social media domains that require special handling
+        self.social_media_domains = [
+            'facebook.com', 'fb.com', 'm.facebook.com',
+            'twitter.com', 'x.com', 'mobile.twitter.com',
+            'instagram.com', 'linkedin.com', 'tiktok.com',
+            'snapchat.com', 'pinterest.com'
+        ]
+
+    def _compile_cleaning_patterns(self):
+        """Pre-compile regex patterns for better performance."""
+        promotional_patterns = [
+            r'Subscribe to.*?newsletter',
+            r'Sign up for.*?updates',
+            r'Follow us on.*?',
+            r'Click here to.*?',
+            r'Read more:.*?',
+            r'Related:.*?',
+            r'ADVERTISEMENT',
+            r'Advertisement',
+            r'Sponsored content',
+            r'This article is premium content',
+            r'Subscribe now to read',
+            r'Already a subscriber\?',
+            r'Continue reading with.*?',
+            r'Get unlimited access',
+            r'Join.*?today',
+            r'Share on.*?',
+            r'Cookie Policy',
+            r'Privacy Policy',
+            r'Terms of Service',
+            r'\[.*?\]',  # Remove content in square brackets
+            r'\(Ad\)',
+            r'\(Advertisement\)',
+        ]
+
+        self.compiled_promotional_patterns = [
+            re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+            for pattern in promotional_patterns
+        ]
+
+    def _is_social_media_url(self, url: str) -> bool:
+        """Check if URL is from a social media platform."""
+        url_lower = url.lower()
+        return any(domain in url_lower for domain in self.social_media_domains)
+
     async def extract_article(self, url: str) -> Tuple[str, str, bool]:
         """
         Extract article content from URL.
@@ -40,6 +88,21 @@ class ArticleExtractor:
             Tuple of (title, content, is_paywalled)
         """
         try:
+            # Check if this is a social media URL and provide better error handling
+            if self._is_social_media_url(url):
+                logger.info(f"Attempting extraction from social media URL: {url}")
+                try:
+                    return await self._extract_social_media_content(url)
+                except Exception as social_error:
+                    logger.warning(f"Social media extraction failed for {url}: {str(social_error)}")
+                    # Provide helpful error message for social media URLs
+                    raise Exception(
+                        "Social media posts often require login or have restricted access. "
+                        "Try using a direct link to a news article or blog post instead. "
+                        "For Twitter/X posts, try using a screenshot or copying the text manually."
+                    )
+
+            # Existing extraction logic remains unchanged
             # First try with newspaper3k (fastest and most reliable)
             article = Article(url)
 
@@ -67,6 +130,79 @@ class ArticleExtractor:
                 logger.error(f"BeautifulSoup fallback also failed: {str(fallback_error)}")
                 raise Exception(f"Failed to extract article: {str(e)}")
 
+    async def _extract_social_media_content(self, url: str) -> Tuple[str, str, bool]:
+        """
+        Attempt to extract content from social media URLs using specialized headers.
+
+        Args:
+            url: Social media URL to extract
+
+        Returns:
+            Tuple of (title, content, is_paywalled)
+        """
+        # Use social media specific headers for better access
+        social_headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
+
+        # Add platform-specific headers
+        if 'facebook.com' in url or 'fb.com' in url:
+            social_headers['User-Agent'] = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+        elif 'twitter.com' in url or 'x.com' in url:
+            social_headers['User-Agent'] = 'Twitterbot/1.0'
+
+        try:
+            # Shorter timeout for social media to fail fast
+            response = self.session.get(url, headers=social_headers, timeout=10, verify=False)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Extract Open Graph data (common on social media)
+            title = ""
+            content = ""
+
+            # Try Open Graph title
+            og_title = soup.find('meta', property='og:title')
+            if og_title:
+                title = og_title.get('content', '')
+
+            # Try Open Graph description
+            og_description = soup.find('meta', property='og:description')
+            if og_description:
+                content = og_description.get('content', '')
+
+            # Try Twitter Card data
+            if not title:
+                twitter_title = soup.find('meta', attrs={'name': 'twitter:title'})
+                if twitter_title:
+                    title = twitter_title.get('content', '')
+
+            if not content:
+                twitter_desc = soup.find('meta', attrs={'name': 'twitter:description'})
+                if twitter_desc:
+                    content = twitter_desc.get('content', '')
+
+            # If still no content, try basic meta description
+            if not content:
+                meta_desc = soup.find('meta', attrs={'name': 'description'})
+                if meta_desc:
+                    content = meta_desc.get('content', '')
+
+            # Validate we got meaningful content
+            if len(content.strip()) < 50:
+                raise Exception("Insufficient content extracted from social media post")
+
+            return title.strip(), content.strip(), False
+
+        except Exception as e:
+            logger.error(f"Social media extraction failed for {url}: {str(e)}")
+            raise e
+
     async def _extract_with_beautifulsoup(self, url: str) -> Tuple[str, str, bool]:
         """Extract article using BeautifulSoup with advanced content detection."""
         try:
@@ -83,7 +219,9 @@ class ArticleExtractor:
             # Add delay to be respectful to servers
             await asyncio.sleep(0.5)
 
-            response = self.session.get(url, headers=headers, timeout=30, verify=False)
+            # Use shorter timeout for faster failure, but keep existing logic
+            timeout = 15  # Reduced from 30 to 15 seconds for faster processing
+            response = self.session.get(url, headers=headers, timeout=timeout, verify=False)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -202,35 +340,10 @@ class ArticleExtractor:
         if not content:
             return ""
 
-        # Remove common promotional phrases and elements
-        promotional_patterns = [
-            r'Subscribe to.*?newsletter',
-            r'Sign up for.*?updates',
-            r'Follow us on.*?',
-            r'Click here to.*?',
-            r'Read more:.*?',
-            r'Related:.*?',
-            r'ADVERTISEMENT',
-            r'Advertisement',
-            r'Sponsored content',
-            r'This article is premium content',
-            r'Subscribe now to read',
-            r'Already a subscriber\?',
-            r'Continue reading with.*?',
-            r'Get unlimited access',
-            r'Join.*?today',
-            r'Share on.*?',
-            r'Cookie Policy',
-            r'Privacy Policy',
-            r'Terms of Service',
-            r'\[.*?\]',  # Remove content in square brackets
-            r'\(Ad\)',
-            r'\(Advertisement\)',
-        ]
-
+        # Use pre-compiled patterns for better performance
         cleaned_content = content
-        for pattern in promotional_patterns:
-            cleaned_content = re.sub(pattern, '', cleaned_content, flags=re.IGNORECASE | re.MULTILINE)
+        for compiled_pattern in self.compiled_promotional_patterns:
+            cleaned_content = compiled_pattern.sub('', cleaned_content)
 
         # Remove excessive whitespace and newlines
         cleaned_content = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_content)  # Max 2 consecutive newlines
@@ -272,8 +385,20 @@ class ArticleExtractor:
             if not parsed.scheme or not parsed.netloc:
                 return False
 
-            # Check if URL is accessible
-            response = self.session.head(url, timeout=10, allow_redirects=True)
+            # For social media URLs, provide more specific validation
+            if self._is_social_media_url(url):
+                logger.info(f"Social media URL detected: {url}")
+                # Still try validation but with shorter timeout
+                try:
+                    response = self.session.head(url, timeout=5, allow_redirects=True)
+                    return response.status_code == 200
+                except Exception:
+                    # Don't fail validation for social media - let extraction handle it
+                    return True
+
+            # Check if URL is accessible with shorter timeout for faster processing
+            timeout = 8  # Reduced from 10 to 8 seconds
+            response = self.session.head(url, timeout=timeout, allow_redirects=True)
 
             # Check content type
             content_type = response.headers.get('content-type', '').lower()
