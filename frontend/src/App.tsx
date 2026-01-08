@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AudioPlayer from '@/components/AudioPlayer';
+import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import RecentArticles from '@/components/RecentArticles';
 import WaveformVisual from '@/components/WaveformVisual';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -20,6 +20,12 @@ function AuthenticatedApp() {
   const [processingStep, setProcessingStep] = useState('');
   const [progress, setProgress] = useState(0);
   const [audioData, setAudioData] = useState<AudioResponse | null>(null);
+  const [progressiveAudioData, setProgressiveAudioData] = useState<{
+    is_progressive: boolean;
+    total_chunks: number;
+    completed_chunks: number;
+    expected_durations: number[];
+  } | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -74,6 +80,8 @@ function AuthenticatedApp() {
       if (response.article && response.audio) {
         setArticleContent(response.article);
         setAudioData(response.audio);
+        // Set progressive audio data if available
+        setProgressiveAudioData((response as any).progressive_audio || null);
         setProcessingStep('Complete!');
         setProgress(100);
 
@@ -403,11 +411,12 @@ function AuthenticatedApp() {
               transition={{ delay: 0.2 }}
               className="mt-6 sm:mt-8"
             >
-              <AudioPlayer
+              <ProgressiveAudioPlayer
                 audio={audioData}
                 content={mode === 'summary' ? articleContent.summary : articleContent.content}
                 title={articleContent.title}
                 mode={mode}
+                progressiveAudio={progressiveAudioData}
               />
             </motion.div>
           )}

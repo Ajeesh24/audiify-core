@@ -19,12 +19,26 @@ except ImportError:
 from app.core.config import get_settings
 from app.api.routes import router
 
-# Configure logging
+# Configure logging with environment variable support
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, log_level, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # Override any existing logging configuration
 )
+
+# Set up root logger for Lambda
+root_logger = logging.getLogger()
+root_logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+# Ensure handlers are properly configured for CloudWatch
+if not root_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    root_logger.addHandler(handler)
+
 logger = logging.getLogger(__name__)
+logger.info(f"Logging configured at level: {log_level}")
 
 settings = get_settings()
 
