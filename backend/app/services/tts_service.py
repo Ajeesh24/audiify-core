@@ -12,6 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
+from app.services.audio_metadata_storage import AudioMetadataStorage
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -39,6 +40,12 @@ class TTSService:
         self.bucket_name = os.environ.get('AUDIO_BUCKET_NAME')
         if not self.bucket_name:
             logger.warning("AUDIO_BUCKET_NAME not set - falling back to local storage")
+
+        # Initialize DynamoDB storage for audio metadata
+        try:
+            self.audio_metadata_storage = AudioMetadataStorage()
+        except Exception as e:
+            logger.warning(f"Failed to initialize AudioMetadataStorage: {str(e)} - metadata tracking disabled")
 
     async def generate_audio(
         self,
@@ -264,6 +271,21 @@ class TTSService:
             # Upload first chunk to S3 immediately
             if self.bucket_name:
                 await self._upload_growing_file_to_s3(growing_file_path, s3_key)
+
+                # Create initial audio metadata in DynamoDB
+                if hasattr(self, 'audio_metadata_storage'):
+                    try:
+                        initial_file_size = os.path.getsize(growing_file_path)
+                        self.audio_metadata_storage.create_audio_metadata(
+                            audio_id=audio_id,
+                            user_id=user_id,
+                            total_chunks=len(chunks),
+                            s3_key=s3_key,
+                            initial_file_size=initial_file_size
+                        )
+                        logger.info(f"Created audio metadata in DynamoDB for {audio_id}: {initial_file_size} bytes")
+                    except Exception as e:
+                        logger.error(f"Failed to create audio metadata for {audio_id}: {str(e)}")
 
             # Prepare metadata for first chunk response
             metadata = {

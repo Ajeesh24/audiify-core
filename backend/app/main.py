@@ -85,6 +85,19 @@ async def process_progressive_chunk(chunk_data):
             # Upload updated file back to S3
             await tts_service._upload_growing_file_to_s3(temp_path, s3_key)
 
+            # Update audio metadata in DynamoDB
+            if hasattr(tts_service, 'audio_metadata_storage'):
+                try:
+                    file_size = os.path.getsize(temp_path)
+                    tts_service.audio_metadata_storage.update_audio_metadata(
+                        audio_id=chunk_data['audio_id'],
+                        file_size=file_size,
+                        chunks_completed=chunk_data['chunk_index']
+                    )
+                    logger.info(f"Updated audio metadata for {chunk_data['audio_id']}: {file_size} bytes, chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']}")
+                except Exception as e:
+                    logger.error(f"Failed to update audio metadata for {chunk_data['audio_id']}: {str(e)}")
+
             logger.info(f"Completed progressive chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']} for {chunk_data['audio_id']}")
 
         finally:

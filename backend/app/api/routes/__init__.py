@@ -23,6 +23,7 @@ from app.services.extractor import ArticleExtractor
 from app.services.llm_service import LLMService
 from app.services.tts_service import TTSService
 from app.services.job_storage import JobStorage
+from app.services.audio_metadata_storage import AudioMetadataStorage
 from app.core.config import get_settings
 from app.auth.dependencies import get_current_user, get_user_id, get_current_user_optional
 
@@ -35,6 +36,7 @@ article_extractor = ArticleExtractor()
 llm_service = LLMService()
 tts_service = TTSService()
 job_storage = JobStorage()  # DynamoDB-based job storage
+audio_metadata_storage = AudioMetadataStorage()  # DynamoDB-based audio metadata storage
 
 async def process_article_background(job_id: str, request: ArticleProcessRequest, user_id: str, job_storage: JobStorage):
     """Background task to process article asynchronously."""
@@ -333,70 +335,48 @@ async def get_audio_progress(
     user_id: str = Depends(get_user_id)
 ):
     """
-    Get progressive audio generation status.
-    Returns chunk completion info for seamless frontend transitions.
+    Get progressive audio generation status from DynamoDB.
+    Returns file size and chunk completion info for seamless frontend transitions.
     """
     try:
-        # Use TTS service to get the audio URL with user verification
-        audio_url = tts_service.get_audio_url(audio_id, user_id)
+        # Get audio metadata from DynamoDB instead of S3 HEAD request
+        logger.info(f"Getting audio progress for {audio_id} from DynamoDB")
+        metadata = audio_metadata_storage.get_audio_metadata(audio_id, user_id)
 
-        if not audio_url:
-            raise HTTPException(status_code=404, detail="Audio file not found or access denied")
+        if not metadata:
+            # Fallback: try to get audio URL for basic info
+            audio_url = tts_service.get_audio_url(audio_id, user_id)
+            if not audio_url:
+                raise HTTPException(status_code=404, detail="Audio file not found or access denied")
 
-        # Check if audio file has grown (basic implementation)
-        # In a production system, you might store this metadata in DynamoDB
-        file_size = None
-        last_modified = None
-
-        if audio_url.startswith('http'):
-            # For S3 URLs, make a HEAD request to check size/modification
-            logger.info(f"Attempting S3 HEAD request for: {audio_url}")
-            try:
-                import requests
-                response = requests.head(audio_url, timeout=10)
-                logger.info(f"HEAD request status: {response.status_code}")
-                logger.info(f"HEAD request headers: {dict(response.headers)}")
-
-                if response.status_code == 200:
-                    file_size = response.headers.get('Content-Length')
-                    logger.info(f"Raw Content-Length header: {file_size}")
-                    if file_size:
-                        file_size = int(file_size)
-                        logger.info(f"Parsed file_size: {file_size}")
-                    last_modified_str = response.headers.get('Last-Modified')
-                    if last_modified_str:
-                        from datetime import datetime
-                        last_modified = datetime.strptime(last_modified_str, '%a, %d %b %Y %H:%M:%S %Z').timestamp()
-                else:
-                    logger.warning(f"HEAD request failed with status: {response.status_code}")
-            except Exception as e:
-                logger.error(f"Failed to get S3 file info via HEAD request: {str(e)}", exc_info=True)
-                # Fall back to basic info
-                pass
-
-            logger.info(f"Final file_size value: {file_size}")
+            logger.warning(f"No DynamoDB metadata found for {audio_id}, returning basic info")
             return {
                 "audio_id": audio_id,
                 "url": audio_url,
-                "file_size": file_size,
-                "last_modified": last_modified,
-                "status": "available",  # Could be "growing", "complete", "available"
-                "message": "Audio file is available for streaming"
+                "file_size": None,
+                "last_modified": None,
+                "status": "available",
+                "message": "Audio file available (no progress tracking)"
             }
-        else:
-            # For local files, check actual file stats
-            if os.path.exists(audio_url):
-                stat = os.stat(audio_url)
-                return {
-                    "audio_id": audio_id,
-                    "url": audio_url,
-                    "file_size": stat.st_size,
-                    "last_modified": stat.st_mtime,
-                    "status": "available",
-                    "message": "Audio file is available for streaming"
-                }
-            else:
-                raise HTTPException(status_code=404, detail="Audio file not found")
+
+        # Get fresh audio URL for frontend
+        audio_url = tts_service.get_audio_url(audio_id, user_id)
+
+        # Determine status based on completion
+        status = "complete" if metadata['chunks_completed'] >= metadata['total_chunks'] else "growing"
+
+        logger.info(f"Audio progress for {audio_id}: {metadata['file_size']} bytes, {metadata['chunks_completed']}/{metadata['total_chunks']} chunks, status: {status}")
+
+        return {
+            "audio_id": audio_id,
+            "url": audio_url,
+            "file_size": metadata['file_size'],
+            "last_modified": metadata.get('updated_at'),
+            "chunks_completed": metadata['chunks_completed'],
+            "total_chunks": metadata['total_chunks'],
+            "status": status,
+            "message": f"Audio progress: {metadata['chunks_completed']}/{metadata['total_chunks']} chunks complete"
+        }
 
     except HTTPException:
         raise
