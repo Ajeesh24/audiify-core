@@ -53,6 +53,7 @@ export default function ProgressiveAudioPlayer({
   const [audioUrl, setAudioUrl] = useState<string>('');
   const [activePlayerRef, setActivePlayerRef] = useState<'primary' | 'buffer'>('primary');
   const [isProgressive, setIsProgressive] = useState(false);
+  const [progressiveComplete, setProgressiveComplete] = useState(false);
   const [lastFileSize, setLastFileSize] = useState<number | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
@@ -142,6 +143,7 @@ export default function ProgressiveAudioPlayer({
 
         // Update status
         if (progress.status === 'complete') {
+          setProgressiveComplete(true);
           clearInterval(interval);
           setPollingInterval(null);
         }
@@ -174,7 +176,6 @@ export default function ProgressiveAudioPlayer({
 
       // Load new version in buffer element with retry mechanism
       bufferAudio.src = newAudioUrl + '?v=' + Date.now(); // Cache busting
-      bufferAudio.currentTime = currentPlaybackTime;
       bufferAudio.playbackRate = playbackSpeed;
       bufferAudio.volume = isMuted ? 0 : volume;
 
@@ -185,9 +186,35 @@ export default function ProgressiveAudioPlayer({
 
       while (retryCount < maxRetries && !success) {
         try {
-          // Wait for buffer audio to be ready
+          // Wait for buffer audio to load metadata first
           await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error(`Buffer load timeout (attempt ${retryCount + 1})`)), 3000);
+            const timeout = setTimeout(() => reject(new Error(`Buffer metadata load timeout (attempt ${retryCount + 1})`)), 3000);
+
+            const handleLoadedMetadata = () => {
+              clearTimeout(timeout);
+              bufferAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+              bufferAudio.removeEventListener('error', handleError);
+              resolve();
+            };
+
+            const handleError = () => {
+              clearTimeout(timeout);
+              bufferAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+              bufferAudio.removeEventListener('error', handleError);
+              reject(new Error(`Buffer metadata failed to load (attempt ${retryCount + 1})`));
+            };
+
+            bufferAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
+            bufferAudio.addEventListener('error', handleError);
+            bufferAudio.load();
+          });
+
+          // Now set currentTime since metadata is loaded
+          bufferAudio.currentTime = currentPlaybackTime;
+
+          // Wait for buffer audio to be ready for playback
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`Buffer canplay timeout (attempt ${retryCount + 1})`)), 3000);
 
             const handleCanPlay = () => {
               clearTimeout(timeout);
@@ -205,11 +232,16 @@ export default function ProgressiveAudioPlayer({
 
             bufferAudio.addEventListener('canplay', handleCanPlay);
             bufferAudio.addEventListener('error', handleError);
-            bufferAudio.load();
           });
 
           success = true;
           console.log(`✅ Buffer audio loaded successfully on attempt ${retryCount + 1}`);
+
+          // Update duration with the new, longer audio
+          if (bufferAudio.duration && isFinite(bufferAudio.duration)) {
+            setDuration(bufferAudio.duration);
+            console.log(`📈 Updated audio duration: ${bufferAudio.duration.toFixed(2)}s`);
+          }
 
         } catch (error) {
           retryCount++;
@@ -442,7 +474,19 @@ export default function ProgressiveAudioPlayer({
             </div>
             <div className="flex justify-between text-xs text-slate-400 mt-1 sm:mt-2">
               <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
+              <span className="flex items-center gap-1">
+                {formatTime(duration)}
+                {isProgressive && !progressiveComplete && (
+                  <>
+                    <span className="text-purple-400">+</span>
+                    <div className="flex items-center gap-0.5">
+                      <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse"></div>
+                      <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                      <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                    </div>
+                  </>
+                )}
+              </span>
             </div>
           </div>
 
