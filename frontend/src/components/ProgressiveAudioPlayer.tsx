@@ -158,21 +158,76 @@ export default function ProgressiveAudioPlayer({
     setPollingInterval(interval);
   }, [audio.audio_id]);
 
-  // Automatically update audio with extended content (simple approach)
+  // Automatically update audio with extended content (simple cache-busting approach)
   const updateAudioWithExtendedContent = async (progressUrl: string) => {
-    const audioElement = getActiveAudioElement();
-    if (!audioElement) return;
+    try {
+      const audioElement = getActiveAudioElement();
+      if (!audioElement) return;
 
-    const currentTime = audioElement.currentTime;
-    const wasPlaying = !audioElement.paused;
+      // Save current playback state
+      const currentTime = audioElement.currentTime;
+      const wasPlaying = !audioElement.paused;
+      const originalDuration = audioElement.duration;
 
-    console.log('🔄 Refreshing audio for extended content');
+      console.log('🔄 Refreshing audio to get extended content...', {
+        currentTime: currentTime.toFixed(2),
+        wasPlaying,
+        originalDuration: originalDuration?.toFixed(2)
+      });
 
-    audioElement.src = audioUrl + '?refresh=' + Date.now();
-    audioElement.currentTime = currentTime;
+      // Pause briefly during refresh
+      if (wasPlaying) {
+        audioElement.pause();
+      }
 
-    if (wasPlaying) {
-      audioElement.play();
+      // Use existing audioUrl with cache busting - same S3 file, now longer!
+      const refreshedUrl = audioUrl + '?refresh=' + Date.now();
+      audioElement.src = refreshedUrl;
+
+      // Handle metadata load to restore state
+      const handleLoadedMetadata = () => {
+        console.log(`📈 Extended audio loaded - duration: ${audioElement.duration?.toFixed(2)}s (was ${originalDuration?.toFixed(2)}s)`);
+
+        // Restore playback position
+        audioElement.currentTime = currentTime;
+
+        // Update duration state
+        setDuration(audioElement.duration || 0);
+
+        // Resume playing (brief pause complete)
+        if (wasPlaying) {
+          audioElement.play().catch(error => {
+            console.warn('⚠️ Could not resume playback:', error);
+          });
+        }
+
+        console.log('✅ Audio refreshed with extended content');
+        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audioElement.removeEventListener('error', handleError);
+      };
+
+      const handleError = (error: Event) => {
+        console.error('❌ Failed to refresh audio:', error);
+
+        // Restore original playback if refresh fails
+        if (wasPlaying) {
+          audioElement.play().catch(err => {
+            console.warn('⚠️ Could not restore playback:', err);
+          });
+        }
+
+        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audioElement.removeEventListener('error', handleError);
+      };
+
+      // Set up event listeners and refresh
+      audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audioElement.addEventListener('error', handleError);
+
+      audioElement.load(); // Refresh same URL, discover extended content
+
+    } catch (error) {
+      console.error('❌ Failed to refresh audio with extended content:', error);
     }
   };
 
