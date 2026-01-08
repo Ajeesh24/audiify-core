@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Clock } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { audifyApi, AudioResponse } from '@/services/api';
 
@@ -54,7 +54,6 @@ export default function ProgressiveAudioPlayer({
   const [activePlayerRef, setActivePlayerRef] = useState<'primary' | 'buffer'>('primary');
   const [isProgressive, setIsProgressive] = useState(false);
   const [lastFileSize, setLastFileSize] = useState<number | null>(null);
-  const [progressiveStatus, setProgressiveStatus] = useState<string>('');
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Get the currently active audio element
@@ -84,10 +83,6 @@ export default function ProgressiveAudioPlayer({
         // Check if this is progressive audio
         const isProgressiveAudio = progressiveAudio?.is_progressive ?? false;
         setIsProgressive(isProgressiveAudio);
-
-        if (isProgressiveAudio) {
-          setProgressiveStatus(`Progressive audio: ${progressiveAudio?.completed_chunks}/${progressiveAudio?.total_chunks} chunks ready`);
-        }
 
         // Get audio URL (same process as original)
         let audioUrlToUse = directUrl;
@@ -147,11 +142,8 @@ export default function ProgressiveAudioPlayer({
 
         // Update status
         if (progress.status === 'complete') {
-          setProgressiveStatus('Audio complete');
           clearInterval(interval);
           setPollingInterval(null);
-        } else {
-          setProgressiveStatus(`Progressive audio: ${progress.status}`);
         }
 
       } catch (error) {
@@ -163,7 +155,7 @@ export default function ProgressiveAudioPlayer({
     setPollingInterval(interval);
   }, [audio.audio_id, lastFileSize]);
 
-  // Perform seamless transition to new audio version
+  // Perform seamless transition to new audio version with retry mechanism
   const performSeamlessTransition = async (newAudioUrl: string) => {
     try {
       const activeAudio = getActiveAudioElement();
@@ -180,34 +172,59 @@ export default function ProgressiveAudioPlayer({
         newUrl: newAudioUrl.substring(0, 80) + '...'
       });
 
-      // Load new version in buffer element
+      // Load new version in buffer element with retry mechanism
       bufferAudio.src = newAudioUrl + '?v=' + Date.now(); // Cache busting
       bufferAudio.currentTime = currentPlaybackTime;
       bufferAudio.playbackRate = playbackSpeed;
       bufferAudio.volume = isMuted ? 0 : volume;
 
-      // Wait for buffer audio to be ready
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Buffer load timeout')), 5000);
+      // Retry mechanism - try up to 3 times with exponential backoff
+      const maxRetries = 3;
+      let retryCount = 0;
+      let success = false;
 
-        const handleCanPlay = () => {
-          clearTimeout(timeout);
-          bufferAudio.removeEventListener('canplay', handleCanPlay);
-          bufferAudio.removeEventListener('error', handleError);
-          resolve();
-        };
+      while (retryCount < maxRetries && !success) {
+        try {
+          // Wait for buffer audio to be ready
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`Buffer load timeout (attempt ${retryCount + 1})`)), 3000);
 
-        const handleError = () => {
-          clearTimeout(timeout);
-          bufferAudio.removeEventListener('canplay', handleCanPlay);
-          bufferAudio.removeEventListener('error', handleError);
-          reject(new Error('Buffer audio failed to load'));
-        };
+            const handleCanPlay = () => {
+              clearTimeout(timeout);
+              bufferAudio.removeEventListener('canplay', handleCanPlay);
+              bufferAudio.removeEventListener('error', handleError);
+              resolve();
+            };
 
-        bufferAudio.addEventListener('canplay', handleCanPlay);
-        bufferAudio.addEventListener('error', handleError);
-        bufferAudio.load();
-      });
+            const handleError = () => {
+              clearTimeout(timeout);
+              bufferAudio.removeEventListener('canplay', handleCanPlay);
+              bufferAudio.removeEventListener('error', handleError);
+              reject(new Error(`Buffer audio failed to load (attempt ${retryCount + 1})`));
+            };
+
+            bufferAudio.addEventListener('canplay', handleCanPlay);
+            bufferAudio.addEventListener('error', handleError);
+            bufferAudio.load();
+          });
+
+          success = true;
+          console.log(`✅ Buffer audio loaded successfully on attempt ${retryCount + 1}`);
+
+        } catch (error) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            const delay = Math.pow(2, retryCount - 1) * 500; // 500ms, 1s, 2s delays
+            console.warn(`⚠️ Buffer load failed (attempt ${retryCount}), retrying in ${delay}ms:`, error);
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            // Try with fresh cache-busting parameter
+            bufferAudio.src = newAudioUrl + '?v=' + Date.now();
+          } else {
+            throw error;
+          }
+        }
+      }
 
       // Seamless switch
       if (wasPlaying) {
@@ -218,11 +235,11 @@ export default function ProgressiveAudioPlayer({
       activeAudio.pause();
       setActivePlayerRef(activePlayerRef === 'primary' ? 'buffer' : 'primary');
 
-      console.log('✅ Seamless transition completed');
+      console.log(`✅ Seamless transition completed after ${retryCount + 1} attempt(s)`);
 
     } catch (error) {
-      console.error('❌ Seamless transition failed:', error);
-      // Fallback: continue with current audio
+      console.error('❌ Seamless transition failed after all retries:', error);
+      // Fallback: continue with current audio - user won't notice failed background transition
     }
   };
 
@@ -399,12 +416,6 @@ export default function ProgressiveAudioPlayer({
                   <p className="text-xs sm:text-sm text-slate-400 capitalize">
                     {mode === 'summary' ? 'AI Summary' : 'Full Article'}
                   </p>
-                )}
-                {isProgressive && (
-                  <div className="flex items-center gap-1 text-xs text-purple-400">
-                    <Clock className="w-3 h-3" />
-                    <span>{progressiveStatus}</span>
-                  </div>
                 )}
               </div>
             </div>
