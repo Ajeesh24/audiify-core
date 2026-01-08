@@ -34,9 +34,8 @@ export default function ProgressiveAudioPlayer({
   mode,
   progressiveAudio
 }: ProgressiveAudioPlayerProps) {
-  // Dual audio elements for seamless transitions
+  // Audio element ref (single element for simplicity)
   const primaryAudioRef = useRef<HTMLAudioElement>(null);
-  const bufferAudioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
   // Player state
@@ -51,21 +50,15 @@ export default function ProgressiveAudioPlayer({
 
   // Progressive audio state
   const [audioUrl, setAudioUrl] = useState<string>('');
-  const [activePlayerRef, setActivePlayerRef] = useState<'primary' | 'buffer'>('primary');
   const [isProgressive, setIsProgressive] = useState(false);
   const [progressiveComplete, setProgressiveComplete] = useState(false);
   const [lastFileSize, setLastFileSize] = useState<number | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // Get the currently active audio element
+  // Get the audio element (simplified - single element now)
   const getActiveAudioElement = useCallback(() => {
-    return activePlayerRef === 'primary' ? primaryAudioRef.current : bufferAudioRef.current;
-  }, [activePlayerRef]);
-
-  // Get the buffer audio element
-  const getBufferAudioElement = useCallback(() => {
-    return activePlayerRef === 'primary' ? bufferAudioRef.current : primaryAudioRef.current;
-  }, [activePlayerRef]);
+    return primaryAudioRef.current;
+  }, []);
 
   // Initial audio URL fetch
   useEffect(() => {
@@ -138,7 +131,11 @@ export default function ProgressiveAudioPlayer({
           });
 
           setLastFileSize(progress.file_size);
-          await performSeamlessTransition(progress.url);
+
+          // Automatically update audio with extended content (no user action needed)
+          if (lastFileSize !== null) { // Don't update on first detection
+            await updateAudioWithExtendedContent(progress.url);
+          }
         }
 
         // Update status
@@ -157,140 +154,77 @@ export default function ProgressiveAudioPlayer({
     setPollingInterval(interval);
   }, [audio.audio_id, lastFileSize]);
 
-  // Perform seamless transition to new audio version with retry mechanism
-  const performSeamlessTransition = async (newAudioUrl: string) => {
+  // Automatically update audio with extended content (seamless, no user action)
+  const updateAudioWithExtendedContent = async (progressUrl: string) => {
     try {
-      const activeAudio = getActiveAudioElement();
-      const bufferAudio = getBufferAudioElement();
+      const audioElement = getActiveAudioElement();
+      if (!audioElement) return;
 
-      if (!activeAudio || !bufferAudio) return;
+      // Save current playback state
+      const currentTime = audioElement.currentTime;
+      const wasPlaying = !audioElement.paused;
+      const originalDuration = audioElement.duration;
 
-      const currentPlaybackTime = activeAudio.currentTime;
-      const wasPlaying = !activeAudio.paused;
-
-      console.log('🔄 Starting seamless transition:', {
-        currentTime: currentPlaybackTime,
+      console.log('🔄 Automatically updating with extended audio content...', {
+        currentTime: currentTime.toFixed(2),
         wasPlaying,
-        newUrl: newAudioUrl.substring(0, 80) + '...'
+        originalDuration: originalDuration?.toFixed(2)
       });
 
-      // Get fresh presigned URL for buffer element to avoid S3 conflicts
-      let bufferAudioUrl: string;
+      // Get fresh presigned URL for extended content
+      let freshUrl: string;
       try {
-        const response = await audifyApi.getAudioPresignedUrl(audio.audio_id);
-        bufferAudioUrl = response + '?buffer=' + Date.now(); // Different cache param
-        console.log('🔄 Got fresh presigned URL for buffer element');
+        freshUrl = await audifyApi.getAudioPresignedUrl(audio.audio_id);
+        console.log('✅ Got fresh URL for extended audio');
       } catch (error) {
-        console.warn('⚠️ Failed to get fresh URL, using original with different cache param');
-        bufferAudioUrl = newAudioUrl + '?buffer=' + Date.now();
+        console.warn('⚠️ Failed to get fresh URL, using progress URL');
+        freshUrl = progressUrl;
       }
 
-      // Load fresh URL in buffer element with retry mechanism
-      bufferAudio.playbackRate = playbackSpeed;
-      bufferAudio.volume = isMuted ? 0 : volume;
+      // Update audio source with extended content
+      audioElement.src = freshUrl + '?auto_update=' + Date.now();
 
-      // Retry mechanism - try up to 3 times with exponential backoff
-      const maxRetries = 3;
-      let retryCount = 0;
-      let success = false;
+      // Handle metadata load to restore state
+      const handleLoadedMetadata = () => {
+        console.log(`📈 Extended audio loaded - duration: ${audioElement.duration?.toFixed(2)}s (was ${originalDuration?.toFixed(2)}s)`);
 
-      while (retryCount < maxRetries && !success) {
-        try {
-          // Set fresh buffer URL for this attempt
-          bufferAudio.src = bufferAudioUrl;
-          // Wait for buffer audio to load metadata first
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error(`Buffer metadata load timeout (attempt ${retryCount + 1})`)), 3000);
-
-            const handleLoadedMetadata = () => {
-              clearTimeout(timeout);
-              bufferAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-              bufferAudio.removeEventListener('error', handleError);
-              resolve();
-            };
-
-            const handleError = () => {
-              clearTimeout(timeout);
-              bufferAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-              bufferAudio.removeEventListener('error', handleError);
-              reject(new Error(`Buffer metadata failed to load (attempt ${retryCount + 1})`));
-            };
-
-            bufferAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
-            bufferAudio.addEventListener('error', handleError);
-            bufferAudio.load();
-          });
-
-          // Now set currentTime since metadata is loaded
-          bufferAudio.currentTime = currentPlaybackTime;
-
-          // Wait for buffer audio to be ready for playback
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error(`Buffer canplay timeout (attempt ${retryCount + 1})`)), 3000);
-
-            const handleCanPlay = () => {
-              clearTimeout(timeout);
-              bufferAudio.removeEventListener('canplay', handleCanPlay);
-              bufferAudio.removeEventListener('error', handleError);
-              resolve();
-            };
-
-            const handleError = () => {
-              clearTimeout(timeout);
-              bufferAudio.removeEventListener('canplay', handleCanPlay);
-              bufferAudio.removeEventListener('error', handleError);
-              reject(new Error(`Buffer audio failed to load (attempt ${retryCount + 1})`));
-            };
-
-            bufferAudio.addEventListener('canplay', handleCanPlay);
-            bufferAudio.addEventListener('error', handleError);
-          });
-
-          success = true;
-          console.log(`✅ Buffer audio loaded successfully on attempt ${retryCount + 1}`);
-
-          // Update duration with the new, longer audio
-          if (bufferAudio.duration && isFinite(bufferAudio.duration)) {
-            setDuration(bufferAudio.duration);
-            console.log(`📈 Updated audio duration: ${bufferAudio.duration.toFixed(2)}s`);
-          }
-
-        } catch (error) {
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const delay = Math.pow(2, retryCount - 1) * 500; // 500ms, 1s, 2s delays
-            console.warn(`⚠️ Buffer load failed (attempt ${retryCount}), retrying in ${delay}ms:`, error);
-            await new Promise(resolve => setTimeout(resolve, delay));
-
-            // Get fresh presigned URL for retry attempt
-            try {
-              const freshResponse = await audifyApi.getAudioPresignedUrl(audio.audio_id);
-              bufferAudioUrl = freshResponse + '?retry' + retryCount + '=' + Date.now();
-              console.log(`🔄 Got fresh presigned URL for retry ${retryCount}`);
-            } catch (urlError) {
-              console.warn(`⚠️ Failed to get fresh URL for retry ${retryCount}, using cache-busted original`);
-              bufferAudioUrl = newAudioUrl + '?retry' + retryCount + '=' + Date.now();
-            }
-          } else {
-            throw error;
-          }
+        // Restore playback position (ensure it's within new duration)
+        if (audioElement.duration && currentTime <= audioElement.duration) {
+          audioElement.currentTime = currentTime;
+        } else if (audioElement.duration) {
+          // If original position is beyond new duration, go to end of original content
+          audioElement.currentTime = Math.min(currentTime, audioElement.duration - 1);
         }
-      }
 
-      // Seamless switch
-      if (wasPlaying) {
-        await bufferAudio.play();
-      }
+        // Update duration state
+        setDuration(audioElement.duration || 0);
 
-      // Pause old audio and switch references
-      activeAudio.pause();
-      setActivePlayerRef(activePlayerRef === 'primary' ? 'buffer' : 'primary');
+        // Restore playing state
+        if (wasPlaying) {
+          audioElement.play().catch(error => {
+            console.warn('⚠️ Could not resume playback after update:', error);
+          });
+        }
 
-      console.log(`✅ Seamless transition completed after ${retryCount + 1} attempt(s)`);
+        console.log('✅ Seamlessly updated to extended audio content');
+        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audioElement.removeEventListener('error', handleError);
+      };
+
+      const handleError = (error: Event) => {
+        console.error('❌ Failed to load extended audio:', error);
+        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audioElement.removeEventListener('error', handleError);
+        // Continue with original audio on error
+      };
+
+      // Set up event listeners and load new content
+      audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audioElement.addEventListener('error', handleError);
+      audioElement.load();
 
     } catch (error) {
-      console.error('❌ Seamless transition failed after all retries:', error);
-      // Fallback: continue with current audio - user won't notice failed background transition
+      console.error('❌ Failed to update audio with extended content:', error);
     }
   };
 
@@ -337,7 +271,7 @@ export default function ProgressiveAudioPlayer({
       audioElement.removeEventListener('error', handleError);
       audioElement.removeEventListener('canplay', handleCanPlay);
     };
-  }, [audioUrl, activePlayerRef, getActiveAudioElement]);
+  }, [audioUrl, getActiveAudioElement]);
 
   // Set initial audio source
   useEffect(() => {
@@ -347,13 +281,10 @@ export default function ProgressiveAudioPlayer({
     }
   }, [audioUrl]);
 
-  // Update playback rate for both audio elements
+  // Update playback rate
   useEffect(() => {
     if (primaryAudioRef.current) {
       primaryAudioRef.current.playbackRate = playbackSpeed;
-    }
-    if (bufferAudioRef.current) {
-      bufferAudioRef.current.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed]);
 
@@ -452,9 +383,8 @@ export default function ProgressiveAudioPlayer({
     >
       <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
         <CardContent className="p-4 sm:p-6">
-          {/* Dual audio elements for seamless transitions */}
+          {/* Audio element for progressive playback */}
           <audio ref={primaryAudioRef} preload="metadata" style={{ display: 'none' }} />
-          <audio ref={bufferAudioRef} preload="metadata" style={{ display: 'none' }} />
 
           {/* Title and Progressive Status */}
           {title && (
