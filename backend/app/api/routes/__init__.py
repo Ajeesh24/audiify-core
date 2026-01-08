@@ -135,19 +135,31 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             storage=audio_metadata.get("storage", "unknown")
         )
 
+        # Debug progressive metadata
+        is_progressive = audio_metadata.get("progressive", False)
+        logger.info(f"Audio metadata progressive flag: {is_progressive}")
+        logger.info(f"Audio metadata keys: {list(audio_metadata.keys())}")
+
+        progressive_audio_data = None
+        if is_progressive:
+            progressive_audio_data = {
+                "is_progressive": True,
+                "total_chunks": audio_metadata.get("total_chunks", 1),
+                "completed_chunks": audio_metadata.get("completed_chunks", 1),
+                "expected_durations": audio_metadata.get("expected_durations", [])
+            }
+            logger.info(f"Created progressive_audio_data: {progressive_audio_data}")
+
         result = ProcessArticleResponse(
             success=True,
             article=article_content,
             audio=audio_response,
             error=None,
             # Add progressive audio metadata to result for frontend use
-            progressive_audio={
-                "is_progressive": audio_metadata.get("progressive", False),
-                "total_chunks": audio_metadata.get("total_chunks", 1),
-                "completed_chunks": audio_metadata.get("completed_chunks", 1),
-                "expected_durations": audio_metadata.get("expected_durations", [])
-            } if audio_metadata.get("progressive") else None
+            progressive_audio=progressive_audio_data
         )
+
+        logger.info(f"Final result progressive_audio: {result.get('progressive_audio') if hasattr(result, 'get') else 'N/A'}")
 
         job_storage.update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
 
