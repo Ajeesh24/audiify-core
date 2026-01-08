@@ -42,6 +42,60 @@ logger.info(f"Logging configured at level: {log_level}")
 
 settings = get_settings()
 
+async def process_progressive_chunk(chunk_data):
+    """Process a single progressive audio chunk."""
+    try:
+        from app.services.tts_service import TTSService
+        import tempfile
+        import aiofiles
+        import boto3
+
+        logger.info(f"Processing progressive chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']} for {chunk_data['audio_id']}")
+
+        # Initialize services
+        tts_service = TTSService()
+        s3_client = boto3.client('s3')
+
+        # Generate audio for this chunk
+        chunk_audio = await tts_service._generate_chunk_audio(
+            chunk_data['chunk_text'],
+            chunk_data['voice'],
+            chunk_data['model'],
+            chunk_data['speed'],
+            chunk_data['format']
+        )
+
+        # Download existing audio file from S3
+        bucket_name = os.environ.get('AUDIO_BUCKET_NAME')
+        if not bucket_name:
+            logger.error("AUDIO_BUCKET_NAME not configured")
+            return
+
+        s3_key = chunk_data['s3_key']
+        temp_path = os.path.join(tempfile.gettempdir(), f"temp_{chunk_data['audio_id']}.mp3")
+
+        try:
+            # Download existing file
+            s3_client.download_file(bucket_name, s3_key, temp_path)
+            logger.info(f"Downloaded existing audio file from S3: {s3_key}")
+
+            # Append new chunk to existing file
+            await tts_service._save_audio_to_growing_file(temp_path, chunk_audio, is_first=False)
+
+            # Upload updated file back to S3
+            await tts_service._upload_growing_file_to_s3(temp_path, s3_key)
+
+            logger.info(f"Completed progressive chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']} for {chunk_data['audio_id']}")
+
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    except Exception as e:
+        logger.error(f"Error processing progressive chunk: {str(e)}")
+        raise
+
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
@@ -246,25 +300,35 @@ if Mangum and os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
                         try:
                             # Parse SQS message
                             message_body = json.loads(record['body'])
-                            job_id = message_body['job_id']
-                            user_id = message_body['user_id']  # Extract user_id
-                            request_data = message_body['request_data']
 
-                            logger.info(f"Processing background job {job_id} for user {user_id}")
+                            # Check job type
+                            job_type = message_body.get('type', 'article_processing')
 
-                            # Import here to avoid circular imports
-                            from app.services.job_storage import JobStorage
-                            from app.models import ArticleProcessRequest
+                            if job_type == 'progressive_chunk':
+                                # Handle progressive chunk processing
+                                logger.info(f"Processing progressive chunk for audio {message_body['audio_id']}")
+                                await process_progressive_chunk(message_body)
+                            else:
+                                # Standard article processing
+                                job_id = message_body['job_id']
+                                user_id = message_body['user_id']  # Extract user_id
+                                request_data = message_body['request_data']
 
-                            # Process the job
-                            job_storage = JobStorage()
-                            request = ArticleProcessRequest(**request_data)
+                                logger.info(f"Processing background job {job_id} for user {user_id}")
 
-                            # Import background processing function
-                            from app.api.routes import process_article_background
+                                # Import here to avoid circular imports
+                                from app.services.job_storage import JobStorage
+                                from app.models import ArticleProcessRequest
 
-                            # Process in background with user_id
-                            await process_article_background(job_id, request, user_id, job_storage)
+                                # Process the job
+                                job_storage = JobStorage()
+                                request = ArticleProcessRequest(**request_data)
+
+                                # Import background processing function
+                                from app.api.routes import process_article_background
+
+                                # Process in background with user_id
+                                await process_article_background(job_id, request, user_id, job_storage)
 
                         except Exception as e:
                             logger.error(f"Failed to process SQS record: {str(e)}")
