@@ -182,6 +182,7 @@ export default function ProgressiveAudioPlayer({
 
       // Use existing audioUrl with cache busting - same S3 file, now longer!
       const refreshedUrl = audioUrl + '?refresh=' + Date.now();
+      console.log('🔗 Refreshed URL:', refreshedUrl);
       audioElement.src = refreshedUrl;
 
       // Handle metadata load to restore state
