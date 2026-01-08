@@ -135,6 +135,12 @@ export interface ProcessArticleResponse {
   article?: ArticleContent;
   audio?: AudioResponse;
   error?: string;
+  progressive_audio?: {
+    is_progressive: boolean;
+    total_chunks: number;
+    completed_chunks: number;
+    expected_durations: number[];
+  } | null;
 }
 
 export interface JobStartResponse {

@@ -81,7 +81,7 @@ function AuthenticatedApp() {
         setArticleContent(response.article);
         setAudioData(response.audio);
         // Set progressive audio data if available
-        setProgressiveAudioData((response as any).progressive_audio || null);
+        setProgressiveAudioData(response.progressive_audio || null);
         setProcessingStep('Complete!');
         setProgress(100);
 
