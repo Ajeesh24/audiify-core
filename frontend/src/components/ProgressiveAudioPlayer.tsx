@@ -138,6 +138,7 @@ export default function ProgressiveAudioPlayer({
           // Automatically update audio with extended content (no user action needed)
           if (previousFileSize !== null) { // Don't update on first detection
             console.log('🔄 Triggering automatic background audio update...');
+            console.log('📍 About to call updateAudioWithExtendedContent function');
             await updateAudioWithExtendedContent(progress.url);
           }
         }
@@ -181,8 +182,9 @@ export default function ProgressiveAudioPlayer({
       }
 
       // Use existing audioUrl with cache busting - same S3 file, now longer!
-      const refreshedUrl = audioUrl + '?refresh=' + Date.now();
-      console.log('🔗 Refreshed URL:', refreshedUrl);
+      const separator = audioUrl.includes('?') ? '&' : '?';
+      const refreshedUrl = audioUrl + separator + 'refresh=' + Date.now();
+      console.log('🔗 Refreshed URL:', refreshedUrl.substring(0, 100) + '...');
       audioElement.src = refreshedUrl;
 
       // Handle metadata load to restore state
