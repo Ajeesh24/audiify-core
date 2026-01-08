@@ -174,8 +174,18 @@ export default function ProgressiveAudioPlayer({
         newUrl: newAudioUrl.substring(0, 80) + '...'
       });
 
-      // Load new version in buffer element with retry mechanism
-      bufferAudio.src = newAudioUrl + '?v=' + Date.now(); // Cache busting
+      // Get fresh presigned URL for buffer element to avoid S3 conflicts
+      let bufferAudioUrl: string;
+      try {
+        const response = await audifyApi.getAudioPresignedUrl(audio.audio_id);
+        bufferAudioUrl = response + '?buffer=' + Date.now(); // Different cache param
+        console.log('🔄 Got fresh presigned URL for buffer element');
+      } catch (error) {
+        console.warn('⚠️ Failed to get fresh URL, using original with different cache param');
+        bufferAudioUrl = newAudioUrl + '?buffer=' + Date.now();
+      }
+
+      // Load fresh URL in buffer element with retry mechanism
       bufferAudio.playbackRate = playbackSpeed;
       bufferAudio.volume = isMuted ? 0 : volume;
 
@@ -186,6 +196,8 @@ export default function ProgressiveAudioPlayer({
 
       while (retryCount < maxRetries && !success) {
         try {
+          // Set fresh buffer URL for this attempt
+          bufferAudio.src = bufferAudioUrl;
           // Wait for buffer audio to load metadata first
           await new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error(`Buffer metadata load timeout (attempt ${retryCount + 1})`)), 3000);
@@ -250,8 +262,15 @@ export default function ProgressiveAudioPlayer({
             console.warn(`⚠️ Buffer load failed (attempt ${retryCount}), retrying in ${delay}ms:`, error);
             await new Promise(resolve => setTimeout(resolve, delay));
 
-            // Try with fresh cache-busting parameter
-            bufferAudio.src = newAudioUrl + '?v=' + Date.now();
+            // Get fresh presigned URL for retry attempt
+            try {
+              const freshResponse = await audifyApi.getAudioPresignedUrl(audio.audio_id);
+              bufferAudioUrl = freshResponse + '?retry' + retryCount + '=' + Date.now();
+              console.log(`🔄 Got fresh presigned URL for retry ${retryCount}`);
+            } catch (urlError) {
+              console.warn(`⚠️ Failed to get fresh URL for retry ${retryCount}, using cache-busted original`);
+              bufferAudioUrl = newAudioUrl + '?retry' + retryCount + '=' + Date.now();
+            }
           } else {
             throw error;
           }
