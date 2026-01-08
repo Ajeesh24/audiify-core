@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { audifyApi, AudioResponse } from '@/services/api';
 
 interface ProgressiveAudioPlayerProps {
-  audio: AudioResponse;
+  audio: AudioResponse | null;
   content?: string;
   title?: string;
   mode?: 'full' | 'summary';
@@ -16,6 +16,7 @@ interface ProgressiveAudioPlayerProps {
     completed_chunks: number;
     expected_durations: number[];
   } | null;
+  isLoading?: boolean;
 }
 
 interface AudioProgress {
@@ -32,7 +33,8 @@ export default function ProgressiveAudioPlayer({
   content,
   title,
   mode,
-  progressiveAudio
+  progressiveAudio,
+  isLoading = false
 }: ProgressiveAudioPlayerProps) {
   // Audio element ref (single element for simplicity)
   const primaryAudioRef = useRef<HTMLAudioElement>(null);
@@ -64,6 +66,9 @@ export default function ProgressiveAudioPlayer({
 
   // Initial audio URL fetch
   useEffect(() => {
+    // Skip fetching if we're in loading state or audio is null
+    if (isLoading || !audio) return;
+
     const fetchInitialAudioUrl = async () => {
       try {
         setIsLoading(true);
@@ -110,7 +115,7 @@ export default function ProgressiveAudioPlayer({
         clearInterval(pollingInterval);
       }
     };
-  }, [audio, progressiveAudio]);
+  }, [audio, progressiveAudio, isLoading]);
 
   // Start monitoring for progressive audio updates
   const startProgressiveMonitoring = useCallback(() => {
@@ -381,6 +386,104 @@ export default function ProgressiveAudioPlayer({
           <div className="text-center text-red-400">
             <Volume2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show loading state when processing
+  if (isLoading || !audio) {
+    return (
+      <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
+        <CardContent className="p-4 sm:p-6">
+          {/* Title */}
+          {title && (
+            <div className="mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-white leading-tight line-clamp-2 sm:line-clamp-1">
+                {title}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                {mode && (
+                  <p className="text-xs sm:text-sm text-slate-400 capitalize">
+                    {mode === 'summary' ? 'AI Summary' : 'Full Article'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Loading Progress bar */}
+          <div className="mb-4 sm:mb-4">
+            <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-purple-500 via-violet-500 to-purple-500 bg-[length:200%_100%]"
+                animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                style={{ width: '40%' }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-slate-400 mt-1 sm:mt-2">
+              <span>Generating audio...</span>
+              <span>Please wait</span>
+            </div>
+          </div>
+
+          {/* Loading Controls */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-0 sm:justify-between">
+            <div className="flex items-center space-x-3 sm:space-x-4 order-1">
+              <button
+                disabled={true}
+                className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 border border-slate-600/50 flex items-center justify-center opacity-50 backdrop-blur-sm"
+              >
+                <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400" />
+              </button>
+
+              <Button
+                variant="gradient"
+                size="icon"
+                disabled={true}
+                className="w-14 h-14 sm:w-16 sm:h-16 shadow-lg shadow-purple-500/30 opacity-75"
+              >
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </Button>
+
+              <button
+                disabled={true}
+                className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 border border-slate-600/50 flex items-center justify-center opacity-50 backdrop-blur-sm"
+              >
+                <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Disabled Volume and Speed controls */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full sm:w-auto order-2 opacity-50">
+              <div className="flex items-center space-x-2">
+                <span className="text-slate-400 text-xs sm:text-sm whitespace-nowrap">Speed</span>
+                <select
+                  disabled={true}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 sm:px-3 sm:py-1 text-xs sm:text-sm text-slate-500 cursor-not-allowed min-w-[60px] sm:min-w-[65px]"
+                >
+                  <option>1x</option>
+                </select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={true}
+                  className="text-slate-500 w-8 h-8 sm:w-auto sm:h-auto cursor-not-allowed"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </Button>
+                <input
+                  type="range"
+                  disabled={true}
+                  className="w-16 sm:w-20 h-1 bg-slate-700 rounded-lg appearance-none cursor-not-allowed slider"
+                />
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

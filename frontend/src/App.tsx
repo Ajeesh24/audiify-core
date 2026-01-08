@@ -29,6 +29,7 @@ function AuthenticatedApp() {
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showAudioCard, setShowAudioCard] = useState(false);
 
   // Set up auth token getter for API requests
   useEffect(() => {
@@ -45,6 +46,9 @@ function AuthenticatedApp() {
     setAudioData(null);
     setArticleContent(null);
     setProgress(0);
+
+    // Show audio card immediately with loading state
+    setShowAudioCard(true);
 
     try {
       // Step 1: Validate URL
@@ -355,7 +359,7 @@ function AuthenticatedApp() {
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                      <span className="truncate">{processingStep || 'Processing...'}</span>
+                      Processing...
                     </>
                   ) : (
                     <>
@@ -364,24 +368,6 @@ function AuthenticatedApp() {
                     </>
                   )}
                 </Button>
-
-                {/* Progress Bar */}
-                {isProcessing && progress > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs sm:text-sm text-slate-400">
-                      <span>Progress</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-full h-2">
-                      <motion.div
-                        className="bg-gradient-to-r from-purple-600 to-violet-600 h-2 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* Error Message */}
                 <AnimatePresence>
@@ -403,7 +389,7 @@ function AuthenticatedApp() {
 
         {/* Audio Player Section */}
         <AnimatePresence>
-          {audioData && articleContent && (
+          {showAudioCard && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -413,34 +399,15 @@ function AuthenticatedApp() {
             >
               <ProgressiveAudioPlayer
                 audio={audioData}
-                content={mode === 'summary' ? articleContent.summary : articleContent.content}
-                title={articleContent.title}
+                content={mode === 'summary' ? articleContent?.summary : articleContent?.content}
+                title={articleContent?.title || (url ? 'Processing article...' : '')}
                 mode={mode}
                 progressiveAudio={progressiveAudioData}
+                isLoading={isProcessing}
               />
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Waveform Visual */}
-        {isProcessing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 sm:mt-8"
-          >
-            <Card className="bg-slate-900/30 border-slate-800/30 backdrop-blur-xl">
-              <CardContent className="p-4 sm:p-6 lg:p-8">
-                <div className="text-center mb-3 sm:mb-4">
-                  <p className="text-slate-300 font-medium text-sm sm:text-base">
-                    {processingStep || 'Processing article...'}
-                  </p>
-                </div>
-                <WaveformVisual isAnimating={true} className="h-12 sm:h-16" />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
 
         {/* Recent Articles Section */}
         <RecentArticles refreshTrigger={refreshTrigger} />
