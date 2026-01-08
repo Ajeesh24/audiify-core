@@ -138,7 +138,8 @@ export default function ProgressiveAudioPlayer({
           // Automatically update audio with extended content (no user action needed)
           if (previousFileSize !== null) { // Don't update on first detection
             console.log('🔄 Triggering automatic background audio update...');
-            await updateAudioWithExtendedContent(progress.url);
+            console.log('📍 About to call updateAudioWithExtendedContent function');
+            await updateAudioWithExtendedContent();
           }
         }
 
@@ -159,10 +160,15 @@ export default function ProgressiveAudioPlayer({
   }, [audio.audio_id]);
 
   // Automatically update audio with extended content (simple cache-busting approach)
-  const updateAudioWithExtendedContent = async (progressUrl: string) => {
+  const updateAudioWithExtendedContent = async () => {
     try {
       const audioElement = getActiveAudioElement();
       if (!audioElement) return;
+
+      if (!audioUrl) {
+        console.warn('❌ Cannot refresh audio: audioUrl is empty');
+        return;
+      }
 
       // Save current playback state
       const currentTime = audioElement.currentTime;
@@ -172,7 +178,8 @@ export default function ProgressiveAudioPlayer({
       console.log('🔄 Refreshing audio to get extended content...', {
         currentTime: currentTime.toFixed(2),
         wasPlaying,
-        originalDuration: originalDuration?.toFixed(2)
+        originalDuration: originalDuration?.toFixed(2),
+        currentAudioUrl: audioUrl.substring(0, 100) + '...'
       });
 
       // Pause briefly during refresh
@@ -181,8 +188,9 @@ export default function ProgressiveAudioPlayer({
       }
 
       // Use existing audioUrl with cache busting - same S3 file, now longer!
-      const refreshedUrl = audioUrl + '?refresh=' + Date.now();
-      console.log('🔗 Refreshed URL:', refreshedUrl);
+      const separator = audioUrl.includes('?') ? '&' : '?';
+      const refreshedUrl = audioUrl + separator + 'refresh=' + Date.now();
+      console.log('🔗 Refreshed URL:', refreshedUrl.substring(0, 100) + '...');
       audioElement.src = refreshedUrl;
 
       // Handle metadata load to restore state
