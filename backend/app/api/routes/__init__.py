@@ -409,11 +409,11 @@ async def get_my_articles(
                     'job_id': job['job_id'],
                     'created_at': job['created_at'],
                     'updated_at': job['updated_at'],
-                    'url': result.get('article', {}).get('url'),
+                    'url': job.get('request_data', {}).get('url'),  # Get URL from request_data
                     'title': result.get('article', {}).get('title'),
                     'word_count': result.get('article', {}).get('word_count', 0),
                     'estimated_reading_time': result.get('article', {}).get('estimated_reading_time', 0),
-                    'mode': 'summary' if result.get('article', {}).get('summary') else 'full',
+                    'mode': job.get('request_data', {}).get('mode', 'full'),  # Get mode from request_data
                     'audio': audio_data
                 }
                 articles.append(article_data)
