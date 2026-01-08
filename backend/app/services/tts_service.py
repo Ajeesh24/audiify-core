@@ -283,11 +283,9 @@ class TTSService:
 
             # Start background processing for remaining chunks if any
             if len(chunks) > 1:
-                logger.info(f"Starting background processing for {len(chunks) - 1} remaining chunks")
-                asyncio.create_task(
-                    self._process_remaining_chunks_progressive(
-                        chunks[1:], growing_file_path, s3_key, voice, model, speed, format, audio_id
-                    )
+                logger.info(f"Queueing {len(chunks) - 1} remaining chunks for background processing")
+                await self._queue_remaining_chunks_for_processing(
+                    chunks[1:], s3_key, voice, model, speed, format, audio_id, user_id
                 )
 
             return s3_key if self.bucket_name else growing_file_path, metadata
@@ -631,3 +629,66 @@ class TTSService:
         except Exception as e:
             logger.error(f"Error in background chunk processing for {audio_id}: {str(e)}")
             # Don't raise - this is background processing
+
+    async def _queue_remaining_chunks_for_processing(
+        self,
+        remaining_chunks: list[str],
+        s3_key: str,
+        voice: str,
+        model: str,
+        speed: float,
+        format: str,
+        audio_id: str,
+        user_id: str
+    ):
+        """Queue remaining chunks for processing via SQS (separate Lambda invocations)."""
+        try:
+            import boto3
+            import json
+            import os
+
+            # Get SQS queue URL from environment
+            queue_url = os.environ.get('SQS_QUEUE_URL')
+            if not queue_url:
+                logger.error("SQS_QUEUE_URL not configured - cannot queue background chunks")
+                return
+
+            sqs_client = boto3.client('sqs')
+
+            # Queue each remaining chunk as a separate job
+            for i, chunk_text in enumerate(remaining_chunks, start=2):  # Start from chunk 2
+                chunk_job = {
+                    "type": "progressive_chunk",
+                    "audio_id": audio_id,
+                    "user_id": user_id,
+                    "chunk_index": i,
+                    "total_chunks": len(remaining_chunks) + 1,  # +1 for the first chunk
+                    "chunk_text": chunk_text,
+                    "s3_key": s3_key,
+                    "voice": voice,
+                    "model": model,
+                    "speed": speed,
+                    "format": format
+                }
+
+                # Send to SQS
+                response = sqs_client.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json.dumps(chunk_job),
+                    MessageAttributes={
+                        'JobType': {
+                            'StringValue': 'progressive_chunk',
+                            'DataType': 'String'
+                        },
+                        'AudioId': {
+                            'StringValue': audio_id,
+                            'DataType': 'String'
+                        }
+                    }
+                )
+
+                logger.info(f"Queued progressive chunk {i}/{len(remaining_chunks) + 1} for {audio_id}: {response['MessageId']}")
+
+        except Exception as e:
+            logger.error(f"Error queuing remaining chunks for {audio_id}: {str(e)}")
+            # Don't raise - this is best-effort background processing
