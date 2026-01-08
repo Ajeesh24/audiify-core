@@ -4,9 +4,8 @@ import asyncio
 import logging
 import uuid
 import os
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from fastapi.responses import JSONResponse
 
 from app.models import (
     ArticleProcessRequest,
@@ -150,7 +149,6 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
                 "completed_chunks": audio_metadata.get("completed_chunks", 1),
                 "expected_durations": audio_metadata.get("expected_durations", [])
             }
-            logger.info(f"Created progressive_audio_data: {progressive_audio_data}")
 
         result = ProcessArticleResponse(
             success=True,
@@ -160,8 +158,6 @@ async def process_article_background(job_id: str, request: ArticleProcessRequest
             # Add progressive audio metadata to result for frontend use
             progressive_audio=progressive_audio_data
         )
-
-        logger.info(f"Final result progressive_audio: {result.progressive_audio if hasattr(result, 'progressive_audio') else 'N/A'}")
 
         job_storage.update_job_status(job_id, "completed", 100, "Processing complete!", result=result)
 
@@ -339,33 +335,19 @@ async def get_audio_progress(
     Returns file size and chunk completion info for seamless frontend transitions.
     """
     try:
-        # Get audio metadata from DynamoDB instead of S3 HEAD request
-        logger.info(f"Getting audio progress for {audio_id} from DynamoDB")
+        # Get audio metadata from DynamoDB
         metadata = audio_metadata_storage.get_audio_metadata(audio_id, user_id)
 
         if not metadata:
-            # Fallback: try to get audio URL for basic info
-            audio_url = tts_service.get_audio_url(audio_id, user_id)
-            if not audio_url:
-                raise HTTPException(status_code=404, detail="Audio file not found or access denied")
-
-            logger.warning(f"No DynamoDB metadata found for {audio_id}, returning basic info")
-            return {
-                "audio_id": audio_id,
-                "url": audio_url,
-                "file_size": None,
-                "last_modified": None,
-                "status": "available",
-                "message": "Audio file available (no progress tracking)"
-            }
+            raise HTTPException(status_code=404, detail="Audio metadata not found or access denied")
 
         # Get fresh audio URL for frontend
         audio_url = tts_service.get_audio_url(audio_id, user_id)
+        if not audio_url:
+            raise HTTPException(status_code=404, detail="Audio file not found or access denied")
 
         # Determine status based on completion
         status = "complete" if metadata['chunks_completed'] >= metadata['total_chunks'] else "growing"
-
-        logger.info(f"Audio progress for {audio_id}: {metadata['file_size']} bytes, {metadata['chunks_completed']}/{metadata['total_chunks']} chunks, status: {status}")
 
         return {
             "audio_id": audio_id,
