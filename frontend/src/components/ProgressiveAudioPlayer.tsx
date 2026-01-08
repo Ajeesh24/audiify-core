@@ -158,7 +158,7 @@ export default function ProgressiveAudioPlayer({
     setPollingInterval(interval);
   }, [audio.audio_id]);
 
-  // Automatically update audio with extended content (seamless, no user action)
+  // Automatically update audio with extended content (simple cache-busting approach)
   const updateAudioWithExtendedContent = async (progressUrl: string) => {
     try {
       const audioElement = getActiveAudioElement();
@@ -169,66 +169,65 @@ export default function ProgressiveAudioPlayer({
       const wasPlaying = !audioElement.paused;
       const originalDuration = audioElement.duration;
 
-      console.log('🔄 Automatically updating with extended audio content...', {
+      console.log('🔄 Refreshing audio to get extended content...', {
         currentTime: currentTime.toFixed(2),
         wasPlaying,
         originalDuration: originalDuration?.toFixed(2)
       });
 
-      // Get fresh presigned URL for extended content
-      let freshUrl: string;
-      try {
-        freshUrl = await audifyApi.getAudioPresignedUrl(audio.audio_id);
-        console.log('✅ Got fresh URL for extended audio');
-      } catch (error) {
-        console.warn('⚠️ Failed to get fresh URL, using progress URL');
-        freshUrl = progressUrl;
+      // Pause briefly during refresh
+      if (wasPlaying) {
+        audioElement.pause();
       }
 
-      // Update audio source with extended content
-      audioElement.src = freshUrl + '?auto_update=' + Date.now();
+      // Use existing audioUrl with cache busting - same S3 file, now longer!
+      const refreshedUrl = audioUrl + '?refresh=' + Date.now();
+      audioElement.src = refreshedUrl;
 
       // Handle metadata load to restore state
       const handleLoadedMetadata = () => {
         console.log(`📈 Extended audio loaded - duration: ${audioElement.duration?.toFixed(2)}s (was ${originalDuration?.toFixed(2)}s)`);
 
-        // Restore playback position (ensure it's within new duration)
-        if (audioElement.duration && currentTime <= audioElement.duration) {
-          audioElement.currentTime = currentTime;
-        } else if (audioElement.duration) {
-          // If original position is beyond new duration, go to end of original content
-          audioElement.currentTime = Math.min(currentTime, audioElement.duration - 1);
-        }
+        // Restore playback position
+        audioElement.currentTime = currentTime;
 
         // Update duration state
         setDuration(audioElement.duration || 0);
 
-        // Restore playing state
+        // Resume playing (brief pause complete)
         if (wasPlaying) {
           audioElement.play().catch(error => {
-            console.warn('⚠️ Could not resume playback after update:', error);
+            console.warn('⚠️ Could not resume playback:', error);
           });
         }
 
-        console.log('✅ Seamlessly updated to extended audio content');
+        console.log('✅ Audio refreshed with extended content');
         audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audioElement.removeEventListener('error', handleError);
       };
 
       const handleError = (error: Event) => {
-        console.error('❌ Failed to load extended audio:', error);
+        console.error('❌ Failed to refresh audio:', error);
+
+        // Restore original playback if refresh fails
+        if (wasPlaying) {
+          audioElement.play().catch(err => {
+            console.warn('⚠️ Could not restore playback:', err);
+          });
+        }
+
         audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audioElement.removeEventListener('error', handleError);
-        // Continue with original audio on error
       };
 
-      // Set up event listeners and load new content
+      // Set up event listeners and refresh
       audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
       audioElement.addEventListener('error', handleError);
-      audioElement.load();
+
+      audioElement.load(); // Refresh same URL, discover extended content
 
     } catch (error) {
-      console.error('❌ Failed to update audio with extended content:', error);
+      console.error('❌ Failed to refresh audio with extended content:', error);
     }
   };
 
