@@ -654,16 +654,48 @@ class TTSService:
         return ' '.join(words[start_idx:best_end]).strip()
 
     async def _generate_chunk_audio(self, text: str, voice: str, model: str, speed: float, format: str) -> bytes:
-        """Generate audio for a single text chunk."""
+        """Generate audio for a single text chunk, handling TTS API character limits."""
         try:
-            response = await self.openai_client.audio.speech.create(
-                model=model,
-                voice=voice,
-                input=text,
-                speed=speed,
-                response_format=format
-            )
-            return response.content
+            # OpenAI TTS API has 4096 character limit - need to sub-chunk if necessary
+            max_chars = 4000  # Leave some buffer below 4096
+
+            if len(text) <= max_chars:
+                # Single API call
+                response = await self.openai_client.audio.speech.create(
+                    model=model,
+                    voice=voice,
+                    input=text,
+                    speed=speed,
+                    response_format=format
+                )
+                return response.content
+
+            else:
+                # Need to sub-chunk and concatenate audio
+                logger.info(f"Large chunk ({len(text)} chars) - sub-chunking for TTS API limits")
+
+                sub_chunks = self._split_text(text, max_chars)
+                logger.info(f"Split into {len(sub_chunks)} TTS sub-chunks")
+
+                audio_segments = []
+                for i, sub_chunk in enumerate(sub_chunks):
+                    logger.info(f"Processing TTS sub-chunk {i+1}/{len(sub_chunks)} ({len(sub_chunk)} chars)")
+
+                    response = await self.openai_client.audio.speech.create(
+                        model=model,
+                        voice=voice,
+                        input=sub_chunk,
+                        speed=speed,
+                        response_format=format
+                    )
+                    audio_segments.append(response.content)
+
+                # Concatenate audio segments
+                combined_audio = b''.join(audio_segments)
+                logger.info(f"Combined {len(audio_segments)} TTS sub-chunks into single audio file")
+
+                return combined_audio
+
         except Exception as e:
             logger.error(f"Error generating chunk audio: {str(e)}")
             raise
