@@ -68,6 +68,14 @@ export default function ProgressiveAudioPlayer({
   useEffect(() => {
     const fetchInitialAudioUrl = async () => {
       try {
+        // Skip URL fetching for temporary loading state
+        if (audio.audio_id === 'loading') {
+          console.log('🔄 Audio player in loading state, skipping URL fetch');
+          setAudioUrl('');
+          setError(null);
+          return;
+        }
+
         setAudioLoading(true);
         setError(null);
 
