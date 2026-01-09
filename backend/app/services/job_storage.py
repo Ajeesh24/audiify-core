@@ -86,13 +86,15 @@ class JobStorage:
     def get_user_jobs(self, user_id: str, limit: int = 50, last_evaluated_key: Optional[str] = None) -> Dict[str, Any]:
         """Get all jobs for a specific user, ordered by creation date (newest first)."""
         try:
+            # First, query the GSI to get job IDs and pagination metadata
             query_kwargs = {
                 'IndexName': 'user-created-index',
                 'KeyConditionExpression': '#user_id = :user_id',
                 'ExpressionAttributeNames': {'#user_id': 'user_id'},
                 'ExpressionAttributeValues': {':user_id': user_id},
                 'Limit': limit,
-                'ScanIndexForward': False  # Most recent first
+                'ScanIndexForward': False,  # Most recent first
+                'ProjectionExpression': 'job_id, created_at'  # Only get what we need from GSI
             }
 
             # Handle pagination - DynamoDB expects full key structure
@@ -112,12 +114,29 @@ class JobStorage:
                 except Exception as e:
                     logger.warning(f"Failed to parse pagination key: {str(e)}, ignoring pagination")
 
-            response = self.table.query(**query_kwargs)
+            gsi_response = self.table.query(**query_kwargs)
+            gsi_items = gsi_response.get('Items', [])
+
+            # If no jobs found, return empty result
+            if not gsi_items:
+                return {
+                    'jobs': [],
+                    'last_evaluated_key': None,
+                    'count': 0
+                }
+
+            # Now fetch full job details from main table for each job_id
+            full_jobs = []
+            for gsi_item in gsi_items:
+                job_id = gsi_item['job_id']
+                full_job = self.get_job(job_id, user_id)  # This gets ALL attributes from main table
+                if full_job:  # Only include jobs that still exist and belong to user
+                    full_jobs.append(full_job)
 
             return {
-                'jobs': response.get('Items', []),
-                'last_evaluated_key': response.get('LastEvaluatedKey'),  # Return full key structure
-                'count': response.get('Count', 0)
+                'jobs': full_jobs,
+                'last_evaluated_key': gsi_response.get('LastEvaluatedKey'),  # Return GSI pagination key
+                'count': len(full_jobs)
             }
 
         except Exception as e:
