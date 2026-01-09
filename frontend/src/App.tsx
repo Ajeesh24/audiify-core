@@ -7,7 +7,6 @@ import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import RecentArticles from '@/components/RecentArticles';
-import WaveformVisual from '@/components/WaveformVisual';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AuthForm } from '@/components/AuthForm';
 import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
@@ -17,8 +16,6 @@ function AuthenticatedApp() {
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStep, setProcessingStep] = useState('');
-  const [progress, setProgress] = useState(0);
   const [audioData, setAudioData] = useState<AudioResponse | null>(null);
   const [progressiveAudioData, setProgressiveAudioData] = useState<{
     is_progressive: boolean;
@@ -29,6 +26,7 @@ function AuthenticatedApp() {
   const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
   // Set up auth token getter for API requests
   useEffect(() => {
@@ -42,23 +40,37 @@ function AuthenticatedApp() {
 
     setIsProcessing(true);
     setError(null);
-    setAudioData(null);
-    setArticleContent(null);
-    setProgress(0);
+
+    // Immediately show audio player with loading state
+    setAudioData({
+      audio_id: 'loading', // Temporary ID
+      url: undefined,
+      size: undefined,
+      s3_key: undefined,
+      storage: undefined,
+      duration: undefined,
+      expires_at: undefined
+    });
+    setArticleContent({
+      title: undefined, // Will be populated when available
+      content: '',
+      summary: undefined,
+      word_count: 0,
+      estimated_reading_time: 0
+    });
 
     try {
-      // Step 1: Validate URL
-      setProcessingStep('Validating URL...');
+      // Step 1: Validate URL (silent)
       const validation = await audifyApi.validateUrl(url);
 
       if (!validation.valid) {
         setError('Invalid or inaccessible URL. Please check the URL and try again.');
+        setAudioData(null);
+        setArticleContent(null);
         return;
       }
 
-      // Step 2: Process article with progress tracking
-      setProcessingStep('Starting article processing...');
-
+      // Step 2: Start processing (silent background)
       const request: ArticleProcessRequest = {
         url,
         mode,
@@ -66,29 +78,27 @@ function AuthenticatedApp() {
 
       const response: ProcessArticleResponse = await audifyApi.processArticle(
         request,
-        (status: JobStatusResponse) => {
-          setProgress(status.progress);
-          setProcessingStep(status.step || 'Processing...');
-        }
+        () => {} // No progress updates in UI
       );
 
       if (!response.success) {
         setError(response.error || 'Failed to process article');
+        setAudioData(null);
+        setArticleContent(null);
         return;
       }
 
       if (response.article && response.audio) {
         setArticleContent(response.article);
         setAudioData(response.audio);
-        // Set progressive audio data if available
         setProgressiveAudioData(response.progressive_audio || null);
-        setProcessingStep('Complete!');
-        setProgress(100);
 
         // Trigger refresh of recent articles list
         setRefreshTrigger(prev => prev + 1);
       } else {
         setError('Incomplete response from server');
+        setAudioData(null);
+        setArticleContent(null);
       }
 
     } catch (err: any) {
@@ -97,7 +107,6 @@ function AuthenticatedApp() {
       // Handle different types of errors
       if (err.message?.includes('Authentication required')) {
         setError('Please sign in to process articles.');
-        // Could trigger sign out here if token is expired
       } else if (err.message?.includes('Rate limit')) {
         setError('Rate limit exceeded. Please try again in a few minutes.');
       } else if (err.message?.includes('timeout')) {
@@ -107,12 +116,12 @@ function AuthenticatedApp() {
       } else {
         setError(err.message || 'An unexpected error occurred. Please try again.');
       }
+
+      // Hide audio player on error
+      setAudioData(null);
+      setArticleContent(null);
     } finally {
       setIsProcessing(false);
-      setTimeout(() => {
-        setProcessingStep('');
-        setProgress(0);
-      }, 2000);
     }
   };
 
@@ -355,7 +364,7 @@ function AuthenticatedApp() {
                   {isProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                      <span className="truncate">{processingStep || 'Processing...'}</span>
+                      <span>Generating Audio...</span>
                     </>
                   ) : (
                     <>
@@ -364,24 +373,6 @@ function AuthenticatedApp() {
                     </>
                   )}
                 </Button>
-
-                {/* Progress Bar */}
-                {isProcessing && progress > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs sm:text-sm text-slate-400">
-                      <span>Progress</span>
-                      <span>{progress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-full h-2">
-                      <motion.div
-                        className="bg-gradient-to-r from-purple-600 to-violet-600 h-2 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* Error Message */}
                 <AnimatePresence>
@@ -401,7 +392,7 @@ function AuthenticatedApp() {
           </Card>
         </motion.div>
 
-        {/* Audio Player Section */}
+        {/* Audio Player Section - Show immediately when processing starts */}
         <AnimatePresence>
           {audioData && articleContent && (
             <motion.div
@@ -417,30 +408,11 @@ function AuthenticatedApp() {
                 title={articleContent.title}
                 mode={mode}
                 progressiveAudio={progressiveAudioData}
+                isLoading={isProcessing} // Pass loading state to audio player
               />
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Waveform Visual */}
-        {isProcessing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-6 sm:mt-8"
-          >
-            <Card className="bg-slate-900/30 border-slate-800/30 backdrop-blur-xl">
-              <CardContent className="p-4 sm:p-6 lg:p-8">
-                <div className="text-center mb-3 sm:mb-4">
-                  <p className="text-slate-300 font-medium text-sm sm:text-base">
-                    {processingStep || 'Processing article...'}
-                  </p>
-                </div>
-                <WaveformVisual isAnimating={true} className="h-12 sm:h-16" />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
 
         {/* Recent Articles Section */}
         <RecentArticles refreshTrigger={refreshTrigger} />

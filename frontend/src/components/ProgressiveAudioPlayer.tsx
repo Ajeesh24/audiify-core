@@ -16,6 +16,7 @@ interface ProgressiveAudioPlayerProps {
     completed_chunks: number;
     expected_durations: number[];
   } | null;
+  isLoading?: boolean; // New prop to indicate loading state
 }
 
 interface AudioProgress {
@@ -32,7 +33,8 @@ export default function ProgressiveAudioPlayer({
   content,
   title,
   mode,
-  progressiveAudio
+  progressiveAudio,
+  isLoading = false
 }: ProgressiveAudioPlayerProps) {
   // Audio element ref (single element for simplicity)
   const primaryAudioRef = useRef<HTMLAudioElement>(null);
@@ -399,44 +401,56 @@ export default function ProgressiveAudioPlayer({
           <audio ref={primaryAudioRef} preload="metadata" style={{ display: 'none' }} />
 
           {/* Title and Progressive Status */}
-          {title && (
-            <div className="mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-semibold text-white leading-tight line-clamp-2 sm:line-clamp-1">
-                {title}
-              </h3>
-              <div className="flex items-center gap-2 mt-1">
-                {mode && (
-                  <p className="text-xs sm:text-sm text-slate-400 capitalize">
-                    {mode === 'summary' ? 'AI Summary' : 'Full Article'}
-                  </p>
-                )}
-              </div>
+          <div className="mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-white leading-tight line-clamp-2 sm:line-clamp-1">
+              {isLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Generating audio...</span>
+                </div>
+              ) : (
+                title || 'Audio Ready'
+              )}
+            </h3>
+            <div className="flex items-center gap-2 mt-1">
+              {mode && !isLoading && (
+                <p className="text-xs sm:text-sm text-slate-400 capitalize">
+                  {mode === 'summary' ? 'AI Summary' : 'Full Article'}
+                </p>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Progress bar */}
           <div className="mb-4 sm:mb-4">
             <div
               ref={progressRef}
               className="w-full h-2 bg-slate-700 rounded-full cursor-pointer touch-manipulation"
-              onClick={handleProgressClick}
+              onClick={isLoading ? undefined : handleProgressClick} // Disable clicks when loading
             >
-              <motion.div
-                className={`h-full rounded-full ${
-                  isProgressive
-                    ? 'bg-gradient-to-r from-purple-500 via-violet-500 to-blue-500'
-                    : 'bg-gradient-to-r from-purple-500 to-violet-500'
-                }`}
-                style={{ width: `${progress}%` }}
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ type: "spring", stiffness: 400, damping: 40 }}
-              />
+              {isLoading ? (
+                // Loading progress bar with shimmer effect
+                <div className="h-full bg-gradient-to-r from-purple-500/30 via-purple-400/60 to-purple-500/30 rounded-full animate-pulse">
+                  <div className="h-full bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full animate-shimmer"></div>
+                </div>
+              ) : (
+                <motion.div
+                  className={`h-full rounded-full ${
+                    isProgressive
+                      ? 'bg-gradient-to-r from-purple-500 via-violet-500 to-blue-500'
+                      : 'bg-gradient-to-r from-purple-500 to-violet-500'
+                  }`}
+                  style={{ width: `${progress}%` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ type: "spring", stiffness: 400, damping: 40 }}
+                />
+              )}
             </div>
             <div className="flex justify-between text-xs text-slate-400 mt-1 sm:mt-2">
-              <span>{formatTime(currentTime)}</span>
+              <span>{isLoading ? '--:--' : formatTime(currentTime)}</span>
               <span className="flex items-center gap-1">
-                {formatTime(duration)}
+                {isLoading ? '--:--' : formatTime(duration)}
                 {isProgressive && !progressiveComplete && (
                   <>
                     <span className="text-purple-400">+</span>
@@ -456,7 +470,7 @@ export default function ProgressiveAudioPlayer({
             <div className="flex items-center space-x-3 sm:space-x-4 order-1">
               <button
                 onClick={skipBackward}
-                disabled={isLoading}
+                disabled={isLoading || !audioUrl}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
                 <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
@@ -466,12 +480,12 @@ export default function ProgressiveAudioPlayer({
                 variant="gradient"
                 size="icon"
                 onClick={togglePlay}
-                disabled={isLoading}
+                disabled={isLoading || !audioUrl} // Disable when loading or no audio URL
                 className={`w-14 h-14 sm:w-16 sm:h-16 touch-manipulation shadow-lg ${
                   isProgressive ? 'shadow-purple-500/50' : 'shadow-purple-500/30'
                 }`}
               >
-                {isLoading ? (
+                {isLoading || !audioUrl ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isPlaying ? (
                   <Pause className="w-7 h-7 sm:w-8 sm:h-8" />
@@ -482,7 +496,7 @@ export default function ProgressiveAudioPlayer({
 
               <button
                 onClick={skipForward}
-                disabled={isLoading}
+                disabled={isLoading || !audioUrl}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
                 <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
