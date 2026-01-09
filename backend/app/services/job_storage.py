@@ -95,15 +95,28 @@ class JobStorage:
                 'ScanIndexForward': False  # Most recent first
             }
 
-            # Handle pagination
+            # Handle pagination - DynamoDB expects full key structure
             if last_evaluated_key:
-                query_kwargs['ExclusiveStartKey'] = {'user_id': user_id, 'created_at': last_evaluated_key}
+                try:
+                    # Parse the last_evaluated_key if it's a string
+                    if isinstance(last_evaluated_key, str):
+                        query_kwargs['ExclusiveStartKey'] = {
+                            'user_id': user_id,
+                            'created_at': last_evaluated_key
+                        }
+                    elif isinstance(last_evaluated_key, dict):
+                        # Use the key as-is if it's already a dict
+                        query_kwargs['ExclusiveStartKey'] = last_evaluated_key
+                    else:
+                        logger.warning(f"Invalid last_evaluated_key format: {type(last_evaluated_key)}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse pagination key: {str(e)}, ignoring pagination")
 
             response = self.table.query(**query_kwargs)
 
             return {
                 'jobs': response.get('Items', []),
-                'last_evaluated_key': response.get('LastEvaluatedKey', {}).get('created_at'),
+                'last_evaluated_key': response.get('LastEvaluatedKey'),  # Return full key structure
                 'count': response.get('Count', 0)
             }
 
