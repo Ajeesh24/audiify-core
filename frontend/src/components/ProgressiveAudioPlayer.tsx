@@ -24,6 +24,8 @@ interface AudioProgress {
   url: string;
   file_size?: number;
   last_modified?: number;
+  chunks_completed?: number;
+  total_chunks?: number;
   status: 'available' | 'growing' | 'complete';
   message: string;
 }
@@ -139,7 +141,8 @@ export default function ProgressiveAudioPlayer({
           console.log('📈 Audio file has grown:', {
             oldSize: lastFileSizeRef.current,
             newSize: progress.file_size,
-            difference: progress.file_size - (lastFileSizeRef.current || 0)
+            difference: progress.file_size - (lastFileSizeRef.current || 0),
+            chunks: `${progress.chunks_completed}/${progress.total_chunks}`
           });
 
           const previousFileSize = lastFileSizeRef.current;
@@ -153,8 +156,13 @@ export default function ProgressiveAudioPlayer({
           }
         }
 
-        // Update status
-        if (progress.status === 'complete') {
+        // Update status - now with better completion detection
+        const isComplete = progress.status === 'complete' ||
+                          (progress.chunks_completed && progress.total_chunks &&
+                           progress.chunks_completed >= progress.total_chunks);
+
+        if (isComplete) {
+          console.log('✅ Audio generation complete, stopping monitoring');
           setProgressiveComplete(true);
           clearInterval(interval);
           setPollingInterval(null);
@@ -557,7 +565,7 @@ export default function ProgressiveAudioPlayer({
       </Card>
 
       {/* Custom slider styles */}
-      <style jsx>{`
+      <style>{`
         .slider::-webkit-slider-thumb {
           appearance: none;
           width: 16px;

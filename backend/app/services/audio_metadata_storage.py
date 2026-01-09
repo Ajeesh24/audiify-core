@@ -50,11 +50,11 @@ class AudioMetadataStorage:
             raise
 
     def update_audio_metadata(self, audio_id: str, file_size: int, chunks_completed: int):
-        """Update audio metadata when a chunk is completed."""
+        """Update audio metadata when a chunk is completed with atomic operations."""
         try:
             job_id = f'audio_{audio_id}'
 
-            # Determine status based on completion
+            # First, get current state to determine total chunks
             response = self.table.get_item(Key={'job_id': job_id})
             if 'Item' not in response:
                 logger.warning(f"Audio metadata not found for {audio_id}")
@@ -62,34 +62,53 @@ class AudioMetadataStorage:
 
             item = response['Item']
             total_chunks = item.get('total_chunks', 1)
+            current_chunks = item.get('chunks_completed', 0)
+
+            # Only update if this chunk is actually newer (prevents out-of-order updates)
+            if chunks_completed <= current_chunks:
+                logger.info(f"Skipping update for {audio_id}: chunk {chunks_completed} <= current {current_chunks}")
+                return True
+
             status = 'complete' if chunks_completed >= total_chunks else 'growing'
 
-            # Update the record
-            self.table.update_item(
-                Key={'job_id': job_id},
-                UpdateExpression='SET file_size = :size, chunks_completed = :completed, #status = :status, updated_at = :updated',
-                ExpressionAttributeNames={'#status': 'status'},
-                ExpressionAttributeValues={
-                    ':size': file_size,
-                    ':completed': chunks_completed,
-                    ':status': status,
-                    ':updated': datetime.now().isoformat()
-                }
-            )
+            # Use conditional update to prevent race conditions
+            try:
+                self.table.update_item(
+                    Key={'job_id': job_id},
+                    UpdateExpression='SET file_size = :size, chunks_completed = :completed, #status = :status, updated_at = :updated',
+                    ConditionExpression='chunks_completed < :completed',  # Only update if we're actually progressing
+                    ExpressionAttributeNames={'#status': 'status'},
+                    ExpressionAttributeValues={
+                        ':size': file_size,
+                        ':completed': chunks_completed,
+                        ':status': status,
+                        ':updated': datetime.now().isoformat()
+                    }
+                )
 
-            logger.info(f"Updated audio metadata for {audio_id}: {file_size} bytes, {chunks_completed}/{total_chunks} chunks, status: {status}")
-            return True
+                logger.info(f"Updated audio metadata for {audio_id}: {file_size} bytes, {chunks_completed}/{total_chunks} chunks, status: {status}")
+                return True
+
+            except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+                # Race condition - another process already updated with higher chunk count
+                logger.info(f"Skipping outdated update for {audio_id}: chunk {chunks_completed} (race condition)")
+                return True
 
         except Exception as e:
             logger.error(f"Failed to update audio metadata for {audio_id}: {str(e)}")
             return False
 
     def get_audio_metadata(self, audio_id: str, user_id: str) -> Optional[Dict[str, Any]]:
-        """Get audio metadata for progress tracking."""
+        """Get audio metadata for progress tracking with strong consistency for completion checks."""
         try:
             job_id = f'audio_{audio_id}'
 
-            response = self.table.get_item(Key={'job_id': job_id})
+            # Use strongly consistent read to avoid eventual consistency issues during completion
+            response = self.table.get_item(
+                Key={'job_id': job_id},
+                ConsistentRead=True  # Force strongly consistent read
+            )
+
             if 'Item' not in response:
                 return None
 
