@@ -86,57 +86,25 @@ class JobStorage:
     def get_user_jobs(self, user_id: str, limit: int = 50, last_evaluated_key: Optional[str] = None) -> Dict[str, Any]:
         """Get all jobs for a specific user, ordered by creation date (newest first)."""
         try:
-            # First, query the GSI to get job IDs and pagination metadata
             query_kwargs = {
                 'IndexName': 'user-created-index',
                 'KeyConditionExpression': '#user_id = :user_id',
                 'ExpressionAttributeNames': {'#user_id': 'user_id'},
                 'ExpressionAttributeValues': {':user_id': user_id},
                 'Limit': limit,
-                'ScanIndexForward': False,  # Most recent first
-                'ProjectionExpression': 'job_id, created_at'  # Only get what we need from GSI
+                'ScanIndexForward': False  # Most recent first
             }
 
-            # Handle pagination - DynamoDB expects full key structure
+            # Handle pagination
             if last_evaluated_key:
-                try:
-                    # Parse the last_evaluated_key if it's a string
-                    if isinstance(last_evaluated_key, str):
-                        query_kwargs['ExclusiveStartKey'] = {
-                            'user_id': user_id,
-                            'created_at': last_evaluated_key
-                        }
-                    elif isinstance(last_evaluated_key, dict):
-                        # Use the key as-is if it's already a dict
-                        query_kwargs['ExclusiveStartKey'] = last_evaluated_key
-                    else:
-                        logger.warning(f"Invalid last_evaluated_key format: {type(last_evaluated_key)}")
-                except Exception as e:
-                    logger.warning(f"Failed to parse pagination key: {str(e)}, ignoring pagination")
+                query_kwargs['ExclusiveStartKey'] = {'user_id': user_id, 'created_at': last_evaluated_key}
 
-            gsi_response = self.table.query(**query_kwargs)
-            gsi_items = gsi_response.get('Items', [])
-
-            # If no jobs found, return empty result
-            if not gsi_items:
-                return {
-                    'jobs': [],
-                    'last_evaluated_key': None,
-                    'count': 0
-                }
-
-            # Now fetch full job details from main table for each job_id
-            full_jobs = []
-            for gsi_item in gsi_items:
-                job_id = gsi_item['job_id']
-                full_job = self.get_job(job_id, user_id)  # This gets ALL attributes from main table
-                if full_job:  # Only include jobs that still exist and belong to user
-                    full_jobs.append(full_job)
+            response = self.table.query(**query_kwargs)
 
             return {
-                'jobs': full_jobs,
-                'last_evaluated_key': gsi_response.get('LastEvaluatedKey'),  # Return GSI pagination key
-                'count': len(full_jobs)
+                'jobs': response.get('Items', []),
+                'last_evaluated_key': response.get('LastEvaluatedKey', {}).get('created_at'),
+                'count': response.get('Count', 0)
             }
 
         except Exception as e:

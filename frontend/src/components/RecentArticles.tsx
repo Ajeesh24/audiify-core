@@ -97,17 +97,14 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
   };
 
   const handlePlayAudio = (article: Article) => {
-    if (!article.audio || !article.audio.audio_id) {
-      console.warn('Cannot play audio: audio data is missing or invalid', { article });
-      return;
-    }
+    if (!article.audio) return;
 
     // Create AudioResponse object for the player
     const audioResponse: AudioResponse = {
       audio_id: article.audio.audio_id,
       url: article.audio.url || undefined,
-      size: article.audio.size || 0,
-      storage: (article.audio.storage as 's3' | 'local') || 's3',
+      size: article.audio.size,
+      storage: article.audio.storage as 's3' | 'local',
       s3_key: undefined,
       duration: undefined,
       expires_at: undefined
@@ -248,7 +245,7 @@ export default function RecentArticles({ refreshTrigger }: RecentArticlesProps) 
                         </div>
 
                         {/* Play Button - Full width on mobile, auto on desktop */}
-                        {article.audio && article.audio.audio_id && (
+                        {article.audio && (
                           <div className="w-full sm:w-auto">
                             <Button
                               onClick={() => handlePlayAudio(article)}

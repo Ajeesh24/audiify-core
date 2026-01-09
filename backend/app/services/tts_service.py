@@ -548,22 +548,8 @@ class TTSService:
                         break
 
             if chunk_text.strip():
-                # Ensure chunk doesn't exceed OpenAI's 4096 character limit
-                if len(chunk_text) > 4000:  # Leave some safety margin
-                    logger.warning(f"Chunk {len(chunks)+1} too long ({len(chunk_text)} chars), splitting further")
-                    # Split the large chunk into smaller pieces
-                    large_chunk_words = chunk_text.split()
-                    sub_chunks = self._split_text(' '.join(large_chunk_words), max_length=4000)
-
-                    for sub_chunk in sub_chunks:
-                        if sub_chunk.strip():
-                            chunks.append(sub_chunk.strip())
-
-                    # Update start_idx based on all words used
-                    start_idx = start_idx + len(large_chunk_words)
-                else:
-                    chunks.append(chunk_text.strip())
-                    start_idx = end_idx
+                chunks.append(chunk_text.strip())
+                start_idx = end_idx
             else:
                 break
 
@@ -571,15 +557,7 @@ class TTSService:
         if start_idx < len(words):
             remaining_chunk = ' '.join(words[start_idx:])
             if remaining_chunk.strip():
-                # Check if remaining chunk exceeds character limit
-                if len(remaining_chunk) > 4000:
-                    logger.warning(f"Remaining chunk too long ({len(remaining_chunk)} chars), splitting further")
-                    remaining_sub_chunks = self._split_text(remaining_chunk, max_length=4000)
-                    for sub_chunk in remaining_sub_chunks:
-                        if sub_chunk.strip():
-                            chunks.append(sub_chunk.strip())
-                else:
-                    chunks.append(remaining_chunk.strip())
+                chunks.append(remaining_chunk.strip())
 
         logger.info(f"Split text into {len(chunks)} exponential chunks: {[len(c.split()) for c in chunks]} words")
         return chunks
