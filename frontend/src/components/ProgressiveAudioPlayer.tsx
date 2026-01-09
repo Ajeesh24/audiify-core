@@ -130,29 +130,54 @@ export default function ProgressiveAudioPlayer({
       clearInterval(pollingInterval);
     }
 
+    let lastRefreshChunk = 1; // Track when we last refreshed
+
     const interval = setInterval(async () => {
       try {
         // Check for audio progress
         const progress: AudioProgress = await audifyApi.getAudioProgress(audio.audio_id);
         console.log('📊 Progressive audio progress:', progress);
 
-        // Check if file has grown
+        // Smart refresh strategy: only refresh on significant chunk milestones
+        const currentChunk = progress.chunks_completed || 1;
+        const totalChunks = progress.total_chunks || 1;
+
+        // Determine if we should refresh (strategic points only)
+        const shouldRefresh = (
+          // New chunk completed since last refresh
+          currentChunk > lastRefreshChunk &&
+          // Refresh at 50% completion, 75% completion, and 100% completion
+          (currentChunk >= Math.ceil(totalChunks * 0.5) ||
+           currentChunk >= Math.ceil(totalChunks * 0.75) ||
+           currentChunk >= totalChunks)
+        ) || (
+          // Force refresh if file has grown significantly (backup check)
+          progress.file_size &&
+          lastFileSizeRef.current &&
+          progress.file_size > lastFileSizeRef.current * 1.5
+        );
+
+        // Check if file has grown and should refresh
         if (progress.file_size && progress.file_size !== lastFileSizeRef.current) {
           console.log('📈 Audio file has grown:', {
             oldSize: lastFileSizeRef.current,
             newSize: progress.file_size,
             difference: progress.file_size - (lastFileSizeRef.current || 0),
-            chunks: `${progress.chunks_completed}/${progress.total_chunks}`
+            chunks: `${progress.chunks_completed}/${progress.total_chunks}`,
+            shouldRefresh,
+            lastRefreshChunk,
+            currentChunk
           });
 
-          const previousFileSize = lastFileSizeRef.current;
           lastFileSizeRef.current = progress.file_size;
 
-          // Automatically update audio with extended content (no user action needed)
-          if (previousFileSize !== null) { // Don't update on first detection
-            console.log('🔄 Triggering automatic background audio update...');
-            console.log('📍 About to call updateAudioWithExtendedContent function');
+          // Only refresh at strategic points
+          if (shouldRefresh && progress.url) {
+            lastRefreshChunk = currentChunk;
+            console.log(`🔄 Strategic refresh at chunk ${currentChunk}/${totalChunks}...`);
             await updateAudioWithExtendedContent(progress.url);
+          } else {
+            console.log(`⏭️ Skipping refresh - waiting for strategic milestone (current: ${currentChunk}/${totalChunks})`);
           }
         }
 
@@ -162,7 +187,13 @@ export default function ProgressiveAudioPlayer({
                            progress.chunks_completed >= progress.total_chunks);
 
         if (isComplete) {
-          console.log('✅ Audio generation complete, stopping monitoring');
+          console.log('✅ Audio generation complete, performing final refresh before stopping monitoring');
+
+          // Force final refresh to ensure we have the complete audio
+          if (progress.url) {
+            await updateAudioWithExtendedContent(progress.url);
+          }
+
           setProgressiveComplete(true);
           clearInterval(interval);
           setPollingInterval(null);
@@ -177,7 +208,7 @@ export default function ProgressiveAudioPlayer({
     setPollingInterval(interval);
   }, [audio.audio_id]);
 
-  // Automatically update audio with extended content (simple cache-busting approach)
+  // Automatically update audio with extended content (optimized for minimal interruption)
   const updateAudioWithExtendedContent = async (freshUrl: string) => {
     try {
       const audioElement = getActiveAudioElement();
@@ -193,65 +224,61 @@ export default function ProgressiveAudioPlayer({
       const wasPlaying = !audioElement.paused;
       const originalDuration = audioElement.duration;
 
-      console.log('🔄 Refreshing audio to get extended content...', {
+      console.log('🔄 Fast refresh for extended content...', {
         currentTime: currentTime.toFixed(2),
         wasPlaying,
         originalDuration: originalDuration?.toFixed(2),
         freshUrl: freshUrl.substring(0, 100) + '...'
       });
 
-      // Pause briefly during refresh
+      // OPTIMIZED: Minimal interruption approach
       if (wasPlaying) {
-        audioElement.pause();
+        audioElement.pause(); // ⏸️ Brief pause starts
       }
 
-      // Use fresh URL with cache busting - same S3 file, now longer!
+      // Use optimized URL with connection hints
       const separator = freshUrl.includes('?') ? '&' : '?';
-      const refreshedUrl = freshUrl + separator + 'refresh=' + Date.now();
-      console.log('🔗 Refreshed URL:', refreshedUrl.substring(0, 100) + '...');
-      audioElement.src = refreshedUrl;
+      const optimizedUrl = freshUrl + separator + 'refresh=' + Date.now() +
+                          '&cache-control=no-cache&connection=keep-alive';
+      console.log('🔗 Optimized URL:', optimizedUrl.substring(0, 100) + '...');
 
-      // Handle metadata load to restore state
-      const handleLoadedMetadata = () => {
-        console.log(`📈 Extended audio loaded - duration: ${audioElement.duration?.toFixed(2)}s (was ${originalDuration?.toFixed(2)}s)`);
+      audioElement.src = optimizedUrl;
 
-        // Restore playback position
-        audioElement.currentTime = currentTime;
+      // IMMEDIATE RESUME: Don't wait for metadata
+      audioElement.currentTime = currentTime;
 
-        // Update duration state
-        setDuration(audioElement.duration || 0);
+      if (wasPlaying) {
+        // ▶️ Resume immediately - interruption ends (~50ms total)
+        audioElement.play().catch(error => {
+          console.warn('⚠️ Could not resume playback immediately:', error);
+        });
+      }
 
-        // Resume playing (brief pause complete)
-        if (wasPlaying) {
-          audioElement.play().catch(error => {
-            console.warn('⚠️ Could not resume playback:', error);
-          });
+      // BACKGROUND METADATA UPDATE: Non-blocking duration updates
+      const handleMetadataUpdate = () => {
+        if (audioElement.duration && audioElement.duration > originalDuration) {
+          console.log(`📈 Extended audio loaded - duration: ${audioElement.duration?.toFixed(2)}s (was ${originalDuration?.toFixed(2)}s)`);
+          setDuration(audioElement.duration);
+          console.log('✅ Audio extended with minimal interruption');
         }
-
-        console.log('✅ Audio refreshed with extended content');
-        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audioElement.removeEventListener('error', handleError);
+        audioElement.removeEventListener('loadedmetadata', handleMetadataUpdate);
       };
 
       const handleError = (error: Event) => {
         console.error('❌ Failed to refresh audio:', error);
 
-        // Restore original playback if refresh fails
-        if (wasPlaying) {
+        // Fallback: ensure playback continues even if refresh fails
+        if (wasPlaying && audioElement.paused) {
           audioElement.play().catch(err => {
-            console.warn('⚠️ Could not restore playback:', err);
+            console.warn('⚠️ Could not restore playback after error:', err);
           });
         }
-
-        audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audioElement.removeEventListener('error', handleError);
       };
 
-      // Set up event listeners and refresh
-      audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+      // Set up background listeners (non-blocking)
+      audioElement.addEventListener('loadedmetadata', handleMetadataUpdate);
       audioElement.addEventListener('error', handleError);
-
-      audioElement.load(); // Refresh same URL, discover extended content
 
     } catch (error) {
       console.error('❌ Failed to refresh audio with extended content:', error);
@@ -266,7 +293,15 @@ export default function ProgressiveAudioPlayer({
     const handleLoadedMetadata = () => {
       setDuration(audioElement.duration);
       setAudioLoading(false);
-      console.log('✅ Progressive audio metadata loaded');
+      console.log(`✅ Progressive audio metadata loaded - duration: ${audioElement.duration?.toFixed(2)}s`);
+
+      // Force duration update after a delay to catch late metadata changes
+      setTimeout(() => {
+        if (audioElement.duration !== duration && audioElement.duration > 0) {
+          setDuration(audioElement.duration);
+          console.log(`🔄 Duration updated after delay: ${audioElement.duration.toFixed(2)}s`);
+        }
+      }, 200);
     };
 
     const handleTimeUpdate = () => {
@@ -277,6 +312,14 @@ export default function ProgressiveAudioPlayer({
       setIsPlaying(false);
     };
 
+    const handleDurationChange = () => {
+      const audioElement = getActiveAudioElement();
+      if (audioElement && audioElement.duration && audioElement.duration > 0) {
+        console.log(`🔄 Duration changed: ${audioElement.duration.toFixed(2)}s (was ${duration.toFixed(2)}s)`);
+        setDuration(audioElement.duration);
+      }
+    };
+
     const handleError = (e: Event) => {
       console.error('❌ Progressive audio error:', e);
       setError('Progressive audio playback error');
@@ -285,12 +328,21 @@ export default function ProgressiveAudioPlayer({
 
     const handleCanPlay = () => {
       setAudioLoading(false);
-      console.log('✅ Progressive audio ready for playback');
+
+      // Update duration when audio is ready to play
+      const audioElement = getActiveAudioElement();
+      if (audioElement && audioElement.duration && audioElement.duration > 0) {
+        setDuration(audioElement.duration);
+        console.log(`✅ Progressive audio ready for playback - duration: ${audioElement.duration.toFixed(2)}s`);
+      } else {
+        console.log('✅ Progressive audio ready for playback - duration not yet available');
+      }
     };
 
     audioElement.addEventListener('loadedmetadata', handleLoadedMetadata);
     audioElement.addEventListener('timeupdate', handleTimeUpdate);
     audioElement.addEventListener('ended', handleEnded);
+    audioElement.addEventListener('durationchange', handleDurationChange);
     audioElement.addEventListener('error', handleError);
     audioElement.addEventListener('canplay', handleCanPlay);
 
@@ -298,6 +350,7 @@ export default function ProgressiveAudioPlayer({
       audioElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audioElement.removeEventListener('timeupdate', handleTimeUpdate);
       audioElement.removeEventListener('ended', handleEnded);
+      audioElement.removeEventListener('durationchange', handleDurationChange);
       audioElement.removeEventListener('error', handleError);
       audioElement.removeEventListener('canplay', handleCanPlay);
     };

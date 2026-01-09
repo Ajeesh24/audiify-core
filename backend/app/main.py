@@ -43,17 +43,20 @@ logger.info(f"Logging configured at level: {log_level}")
 settings = get_settings()
 
 async def process_progressive_chunk(chunk_data):
-    """Process a single progressive audio chunk."""
+    """Process a single progressive audio chunk with coordination."""
     try:
         from app.services.tts_service import TTSService
+        from app.services.progressive_audio_coordinator import ProgressiveAudioCoordinator
         import tempfile
         import aiofiles
         import boto3
+        import base64
 
         logger.info(f"Processing progressive chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']} for {chunk_data['audio_id']}")
 
         # Initialize services
         tts_service = TTSService()
+        coordinator = ProgressiveAudioCoordinator()
         s3_client = boto3.client('s3')
 
         # Generate audio for this chunk
@@ -65,45 +68,74 @@ async def process_progressive_chunk(chunk_data):
             chunk_data['format']
         )
 
-        # Download existing audio file from S3
+        audio_id = chunk_data['audio_id']
+        chunk_index = chunk_data['chunk_index']
+
+        # Check if we can process this chunk (coordination)
+        coordination_result = coordinator.try_process_chunk(audio_id, chunk_index, chunk_audio)
+
+        if not coordination_result['should_process']:
+            logger.info(f"Chunk {chunk_index} for {audio_id} stored for later processing (coordination)")
+            return
+
+        logger.info(f"Processing chunk {chunk_index} for {audio_id} (coordinator approved)")
+
+        # Process this chunk and any ready pending chunks
+        chunks_to_process = [{'index': chunk_index, 'data': chunk_audio}]
+
         bucket_name = os.environ.get('AUDIO_BUCKET_NAME')
         if not bucket_name:
             logger.error("AUDIO_BUCKET_NAME not configured")
             return
 
         s3_key = chunk_data['s3_key']
-        temp_path = os.path.join(tempfile.gettempdir(), f"temp_{chunk_data['audio_id']}.mp3")
 
-        try:
-            # Download existing file
-            s3_client.download_file(bucket_name, s3_key, temp_path)
-            logger.info(f"Downloaded existing audio file from S3: {s3_key}")
+        for chunk_to_process in chunks_to_process:
+            current_index = chunk_to_process['index']
+            current_audio = chunk_to_process['data']
 
-            # Append new chunk to existing file
-            await tts_service._save_audio_to_growing_file(temp_path, chunk_audio, is_first=False)
+            temp_path = os.path.join(tempfile.gettempdir(), f"temp_{audio_id}_{current_index}.mp3")
 
-            # Upload updated file back to S3
-            await tts_service._upload_growing_file_to_s3(temp_path, s3_key)
+            try:
+                # Download existing file
+                s3_client.download_file(bucket_name, s3_key, temp_path)
+                logger.info(f"Downloaded existing audio file from S3: {s3_key}")
 
-            # Update audio metadata in DynamoDB
-            if hasattr(tts_service, 'audio_metadata_storage'):
-                try:
-                    file_size = os.path.getsize(temp_path)
-                    tts_service.audio_metadata_storage.update_audio_metadata(
-                        audio_id=chunk_data['audio_id'],
-                        file_size=file_size,
-                        chunks_completed=chunk_data['chunk_index']
-                    )
-                    logger.info(f"Updated audio metadata for {chunk_data['audio_id']}: {file_size} bytes, chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']}")
-                except Exception as e:
-                    logger.error(f"Failed to update audio metadata for {chunk_data['audio_id']}: {str(e)}")
+                # Append new chunk to existing file
+                await tts_service._save_audio_to_growing_file(temp_path, current_audio, is_first=False)
 
-            logger.info(f"Completed progressive chunk {chunk_data['chunk_index']}/{chunk_data['total_chunks']} for {chunk_data['audio_id']}")
+                # Upload updated file back to S3
+                await tts_service._upload_growing_file_to_s3(temp_path, s3_key)
 
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+                # Update audio metadata in DynamoDB
+                if hasattr(tts_service, 'audio_metadata_storage'):
+                    try:
+                        file_size = os.path.getsize(temp_path)
+                        tts_service.audio_metadata_storage.update_audio_metadata(
+                            audio_id=audio_id,
+                            file_size=file_size,
+                            chunks_completed=current_index
+                        )
+                        logger.info(f"Updated audio metadata for {audio_id}: {file_size} bytes, chunk {current_index}")
+                    except Exception as e:
+                        logger.error(f"Failed to update audio metadata for {audio_id}: {str(e)}")
+
+                # Mark chunk completed in coordinator and get next ready chunks
+                ready_pending_chunks = coordinator.mark_chunk_completed(audio_id, current_index)
+
+                # Add any newly ready chunks to our processing queue
+                for ready_chunk in ready_pending_chunks:
+                    chunks_to_process.append({
+                        'index': ready_chunk['index'],
+                        'data': base64.b64decode(ready_chunk['data']) if isinstance(ready_chunk['data'], str) else ready_chunk['data']
+                    })
+
+                logger.info(f"Completed chunk {current_index} for {audio_id}. {len(ready_pending_chunks)} additional chunks now ready")
+
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
 
     except Exception as e:
         logger.error(f"Error processing progressive chunk: {str(e)}")

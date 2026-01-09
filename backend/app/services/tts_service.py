@@ -13,6 +13,7 @@ from botocore.exceptions import ClientError
 
 from app.core.config import get_settings
 from app.services.audio_metadata_storage import AudioMetadataStorage
+from app.services.progressive_audio_coordinator import ProgressiveAudioCoordinator
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -46,6 +47,12 @@ class TTSService:
             self.audio_metadata_storage = AudioMetadataStorage()
         except Exception as e:
             logger.warning(f"Failed to initialize AudioMetadataStorage: {str(e)} - metadata tracking disabled")
+
+        # Initialize progressive audio coordinator
+        try:
+            self.progressive_coordinator = ProgressiveAudioCoordinator()
+        except Exception as e:
+            logger.warning(f"Failed to initialize ProgressiveAudioCoordinator: {str(e)} - coordination disabled")
 
     async def generate_audio(
         self,
@@ -286,6 +293,19 @@ class TTSService:
                         logger.info(f"Created audio metadata in DynamoDB for {audio_id}: {initial_file_size} bytes")
                     except Exception as e:
                         logger.error(f"Failed to create audio metadata for {audio_id}: {str(e)}")
+
+                # Initialize progressive coordination for sequential processing
+                if hasattr(self, 'progressive_coordinator') and len(chunks) > 1:
+                    try:
+                        self.progressive_coordinator.initialize_audio_coordination(
+                            audio_id=audio_id,
+                            user_id=user_id,
+                            total_chunks=len(chunks),
+                            s3_key=s3_key
+                        )
+                        logger.info(f"Initialized progressive coordination for {audio_id}: {len(chunks)} total chunks")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize coordination for {audio_id}: {str(e)}")
 
             # Prepare metadata for first chunk response
             metadata = {
