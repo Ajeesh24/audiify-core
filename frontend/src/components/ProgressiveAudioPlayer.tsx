@@ -47,7 +47,7 @@ export default function ProgressiveAudioPlayer({
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(true); // Renamed to avoid conflict with prop
   const [error, setError] = useState<string | null>(null);
 
   // Progressive audio state
@@ -68,7 +68,7 @@ export default function ProgressiveAudioPlayer({
   useEffect(() => {
     const fetchInitialAudioUrl = async () => {
       try {
-        setIsLoading(true);
+        setAudioLoading(true);
         setError(null);
 
         const directUrl = audifyApi.getDirectAudioUrl(audio);
@@ -249,7 +249,7 @@ export default function ProgressiveAudioPlayer({
 
     const handleLoadedMetadata = () => {
       setDuration(audioElement.duration);
-      setIsLoading(false);
+      setAudioLoading(false);
       console.log('✅ Progressive audio metadata loaded');
     };
 
@@ -264,11 +264,11 @@ export default function ProgressiveAudioPlayer({
     const handleError = (e: Event) => {
       console.error('❌ Progressive audio error:', e);
       setError('Progressive audio playback error');
-      setIsLoading(false);
+      setAudioLoading(false);
     };
 
     const handleCanPlay = () => {
-      setIsLoading(false);
+      setAudioLoading(false);
       console.log('✅ Progressive audio ready for playback');
     };
 
@@ -304,7 +304,7 @@ export default function ProgressiveAudioPlayer({
 
   const togglePlay = () => {
     const audioElement = getActiveAudioElement();
-    if (!audioElement || isLoading) return;
+    if (!audioElement || isLoading || audioLoading) return;
 
     if (isPlaying) {
       audioElement.pause();
@@ -470,7 +470,7 @@ export default function ProgressiveAudioPlayer({
             <div className="flex items-center space-x-3 sm:space-x-4 order-1">
               <button
                 onClick={skipBackward}
-                disabled={isLoading || !audioUrl}
+                disabled={isLoading || audioLoading || !audioUrl}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
                 <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
@@ -480,12 +480,12 @@ export default function ProgressiveAudioPlayer({
                 variant="gradient"
                 size="icon"
                 onClick={togglePlay}
-                disabled={isLoading || !audioUrl} // Disable when loading or no audio URL
+                disabled={isLoading || audioLoading || !audioUrl} // Disable when externally loading, audio loading, or no URL
                 className={`w-14 h-14 sm:w-16 sm:h-16 touch-manipulation shadow-lg ${
                   isProgressive ? 'shadow-purple-500/50' : 'shadow-purple-500/30'
                 }`}
               >
-                {isLoading || !audioUrl ? (
+                {isLoading || audioLoading || !audioUrl ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isPlaying ? (
                   <Pause className="w-7 h-7 sm:w-8 sm:h-8" />
@@ -496,7 +496,7 @@ export default function ProgressiveAudioPlayer({
 
               <button
                 onClick={skipForward}
-                disabled={isLoading || !audioUrl}
+                disabled={isLoading || audioLoading || !audioUrl}
                 className="group w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/50 flex items-center justify-center touch-manipulation transition-all disabled:opacity-50 backdrop-blur-sm"
               >
                 <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 group-hover:text-white transition-colors" />
