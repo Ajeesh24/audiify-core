@@ -320,7 +320,7 @@ class TTSService:
                 "progressive": len(chunks) > 1,
                 "total_chunks": len(chunks),
                 "completed_chunks": 1,
-                "expected_durations": [20, 40, 80, 160, 320][:len(chunks)]
+                "expected_durations": [max(1, int(len(chunk.split()) / 2.5)) for chunk in chunks]  # Convert to integers, minimum 1 second
             }
 
             # Start background processing for remaining chunks if any
@@ -531,56 +531,127 @@ class TTSService:
 
     def _create_exponential_chunks(self, text: str) -> list[str]:
         """
-        Create exponential chunks for progressive audio generation.
+        Create optimal 3-chunk strategy for fake streaming experience.
 
-        Chunk durations: 15s → 40s → 80s → 160s → 320s
-        Approximate words per second: 2.5 (conversational speed)
+        Strategy:
+        - Chunk 1: 50-60s (immediate start - user gets audio quickly)
+        - Chunk 2: 2-3 minutes (substantial content - minimal interruptions)
+        - Chunk 3: Everything remaining (completion)
+
+        This gives us 3-4 minutes total processing time while user enjoys uninterrupted listening.
         """
         words = text.split()
         if len(words) == 0:
             return [text]
 
-        # Target durations in seconds with exponential growth
-        target_durations = [15, 40, 80, 160, 320]
+        total_words = len(words)
         words_per_second = 2.5
+        total_duration = total_words / words_per_second
+
+        logger.info(f"Optimal chunking: {total_words} words (~{total_duration:.1f}s total)")
+
+        # For very short articles (< 2 minutes), don't chunk
+        if total_duration < 120:
+            logger.info(f"Short article ({total_duration:.1f}s) - single chunk optimal")
+            return [text.strip()]
 
         chunks = []
         start_idx = 0
 
-        for target_seconds in target_durations:
-            if start_idx >= len(words):
-                break
+        # Chunk 1: 50-60 seconds (immediate playback)
+        chunk1_seconds = 55  # Sweet spot for immediate start
+        chunk1_words = min(int(chunk1_seconds * words_per_second), total_words - 100)  # Leave at least 100 words
+        chunk1_words = max(chunk1_words, 80)  # Minimum 80 words (~32s)
 
-            target_words = int(target_seconds * words_per_second)
-            end_idx = min(start_idx + target_words, len(words))
+        chunk1_text = self._extract_chunk_at_sentence_boundary(words, start_idx, chunk1_words)
+        chunks.append(chunk1_text)
+        start_idx = len(chunk1_text.split())
 
-            # Find good breaking point (sentence boundary)
-            chunk_text = ' '.join(words[start_idx:end_idx])
+        remaining_words = total_words - start_idx
+        remaining_duration = remaining_words / words_per_second
 
-            # Look for sentence ending near the end to avoid cutting mid-sentence
-            if end_idx < len(words):
-                remaining_text = ' '.join(words[start_idx:min(end_idx + 20, len(words))])
-                for delimiter in ['. ', '! ', '? ', '\n']:
-                    delimiter_pos = remaining_text.find(delimiter, len(chunk_text) - 50)
-                    if delimiter_pos != -1 and delimiter_pos > len(chunk_text) * 0.8:
-                        chunk_text = remaining_text[:delimiter_pos + len(delimiter.strip())]
-                        end_idx = start_idx + len(chunk_text.split())
-                        break
+        logger.info(f"Chunk 1: {len(chunk1_text.split())} words (~{len(chunk1_text.split()) / words_per_second:.1f}s)")
+        logger.info(f"Remaining: {remaining_words} words (~{remaining_duration:.1f}s)")
 
-            if chunk_text.strip():
-                chunks.append(chunk_text.strip())
-                start_idx = end_idx
-            else:
-                break
+        # Smart decision for remaining content
+        if remaining_duration <= 180:  # <= 3 minutes remaining
+            # Put all remaining in Chunk 2 (user will have 3+ minutes to process any future content)
+            remaining_text = ' '.join(words[start_idx:])
+            if remaining_text.strip():
+                chunks.append(remaining_text.strip())
+                logger.info(f"Chunk 2 (final): {len(remaining_text.split())} words (~{remaining_duration:.1f}s)")
 
-        # Add remaining text as final chunk if any
-        if start_idx < len(words):
-            remaining_chunk = ' '.join(words[start_idx:])
-            if remaining_chunk.strip():
-                chunks.append(remaining_chunk.strip())
+        else:
+            # Large content: Chunk 2 = 2-3 minutes, Chunk 3 = rest
+            chunk2_seconds = 150  # 2.5 minutes sweet spot
+            chunk2_words = min(int(chunk2_seconds * words_per_second), remaining_words - 50)  # Leave 50 for chunk 3
 
-        logger.info(f"Split text into {len(chunks)} exponential chunks: {[len(c.split()) for c in chunks]} words")
+            chunk2_text = self._extract_chunk_at_sentence_boundary(words, start_idx, start_idx + chunk2_words)
+            chunks.append(chunk2_text)
+            start_idx += len(chunk2_text.split())
+
+            # Chunk 3: Everything remaining
+            final_text = ' '.join(words[start_idx:])
+            if final_text.strip():
+                chunks.append(final_text.strip())
+
+            logger.info(f"Chunk 2: {len(chunk2_text.split())} words (~{len(chunk2_text.split()) / words_per_second:.1f}s)")
+            logger.info(f"Chunk 3: {len(final_text.split())} words (~{len(final_text.split()) / words_per_second:.1f}s)")
+
+        # Log final summary
+        total_chunks = len(chunks)
+        chunk_sizes = [len(chunk.split()) for chunk in chunks]
+        estimated_durations = [size / words_per_second for size in chunk_sizes]
+
+        logger.info(f"Optimal result: {total_chunks} chunks, durations: {[f'{d:.1f}s' for d in estimated_durations]}")
+        logger.info(f"Processing window: ~{sum(estimated_durations[1:]) if len(estimated_durations) > 1 else 0:.1f}s to complete remaining chunks")
+
+        # Content validation
+        total_chunked_words = sum(len(chunk.split()) for chunk in chunks)
+        if total_chunked_words != total_words:
+            logger.error(f"❌ CONTENT LOSS! Original: {total_words}, Chunked: {total_chunked_words}")
+            return [text.strip()]
+
+        empty_chunks = [i for i, chunk in enumerate(chunks) if not chunk.strip()]
+        if empty_chunks:
+            logger.error(f"❌ EMPTY CHUNKS at indices: {empty_chunks}")
+            return [text.strip()]
+
+        logger.info(f"✅ Content validation passed: {total_chunked_words}/{total_words} words preserved")
         return chunks
+
+    def _extract_chunk_at_sentence_boundary(self, words: list[str], start_idx: int, target_end_idx: int) -> str:
+        """Extract a chunk of text, preferring to break at sentence boundaries."""
+        if start_idx >= len(words):
+            return ""
+
+        if target_end_idx >= len(words):
+            return ' '.join(words[start_idx:])
+
+        # Get the target chunk
+        target_text = ' '.join(words[start_idx:target_end_idx])
+
+        # Look for sentence endings near the target end (within ±20 words)
+        search_start = max(int(target_end_idx * 0.8), start_idx + 10)  # Don't go below 80% of target
+        search_end = min(target_end_idx + 20, len(words))
+
+        best_end = target_end_idx
+
+        # Search for sentence boundaries in the extended range
+        for i in range(search_start, search_end):
+            if i < len(words):
+                word = words[i]
+                # Look for sentence endings
+                if word.endswith(('.', '!', '?')) or word.endswith(('."', '!"', '?"')):
+                    # Found a sentence boundary
+                    best_end = i + 1
+                    break
+                elif i < len(words) - 1 and words[i + 1].startswith(('However,', 'But,', 'Meanwhile,', 'Furthermore,')):
+                    # Found a paragraph/section transition
+                    best_end = i + 1
+                    break
+
+        return ' '.join(words[start_idx:best_end]).strip()
 
     async def _generate_chunk_audio(self, text: str, voice: str, model: str, speed: float, format: str) -> bytes:
         """Generate audio for a single text chunk."""
