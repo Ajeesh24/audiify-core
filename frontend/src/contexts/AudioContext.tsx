@@ -11,6 +11,7 @@ interface AudioContextType {
   duration: number;
   volume: number;
   isMuted: boolean;
+  playbackSpeed: number;
 
   // Actions
   setCurrentAudio: (audio: AudioResponse | null, title?: string) => void;
@@ -19,6 +20,9 @@ interface AudioContextType {
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
   toggleMute: () => void;
+  setPlaybackSpeed: (speed: number) => void;
+  skipBack: (seconds?: number) => void;
+  skipForward: (seconds?: number) => void;
 
   // Internal state setters (for audio element callbacks)
   setIsPlaying: (playing: boolean) => void;
@@ -50,6 +54,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeedState] = useState(1);
 
   const setCurrentAudio = useCallback((audio: AudioResponse | null, title?: string) => {
     setCurrentAudioState(audio);
@@ -111,6 +116,32 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     }
   }, [isMuted]);
 
+  const setPlaybackSpeed = useCallback((speed: number) => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+      setPlaybackSpeedState(speed);
+      console.log('🎚️ Playback speed set to:', speed + 'x');
+    }
+  }, []);
+
+  const skipBack = useCallback((seconds: number = 15) => {
+    if (audioRef.current) {
+      const newTime = Math.max(0, audioRef.current.currentTime - seconds);
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+      console.log('⏮️ Skipped back', seconds, 'seconds');
+    }
+  }, []);
+
+  const skipForward = useCallback((seconds: number = 15) => {
+    if (audioRef.current && duration > 0) {
+      const newTime = Math.min(duration, audioRef.current.currentTime + seconds);
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+      console.log('⏭️ Skipped forward', seconds, 'seconds');
+    }
+  }, [duration]);
+
   const contextValue: AudioContextType = {
     audioRef,
     currentAudio,
@@ -120,12 +151,16 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     duration,
     volume,
     isMuted,
+    playbackSpeed,
     setCurrentAudio,
     play,
     pause,
     seek,
     setVolume,
     toggleMute,
+    setPlaybackSpeed,
+    skipBack,
+    skipForward,
     setIsPlaying,
     setCurrentTime,
     setDuration

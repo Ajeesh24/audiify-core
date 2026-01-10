@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Play, Pause, Volume2, VolumeX, ChevronUp, ChevronDown, Headphones, SkipBack, SkipForward, Gauge } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AudioResponse } from '@/services/api';
+import FullScreenAudioPlayer from './FullScreenAudioPlayer';
 
 interface StickyFooterPlayerProps {
   audio: AudioResponse | null;
@@ -12,12 +13,15 @@ interface StickyFooterPlayerProps {
   duration: number;
   volume: number;
   isMuted: boolean;
+  playbackSpeed: number;
   onPlay: () => void;
   onPause: () => void;
   onSeek: (time: number) => void;
   onVolumeChange: (volume: number) => void;
   onMuteToggle: () => void;
-  onExpand?: () => void;
+  onSpeedChange: (speed: number) => void;
+  onSkipBack: () => void;
+  onSkipForward: () => void;
 }
 
 export default function StickyFooterPlayer({
@@ -28,18 +32,34 @@ export default function StickyFooterPlayer({
   duration,
   volume,
   isMuted,
+  playbackSpeed,
   onPlay,
   onPause,
   onSeek,
   onVolumeChange,
   onMuteToggle,
-  onExpand
+  onSpeedChange,
+  onSkipBack,
+  onSkipForward
 }: StickyFooterPlayerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Function to handle skip controls - now properly functional
+  const handleSkipBack = () => {
+    onSkipBack();
+  };
+
+  const handleSkipForward = () => {
+    onSkipForward();
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    onSpeedChange(speed);
+    setShowSpeedMenu(false);
+  };
 
   if (!audio || !title) {
     return null;
@@ -69,22 +89,6 @@ export default function StickyFooterPlayer({
     onSeek(newTime);
   };
 
-  const handleSkipBack = () => {
-    const newTime = Math.max(0, currentTime - 15);
-    onSeek(newTime);
-  };
-
-  const handleSkipForward = () => {
-    const newTime = Math.min(duration, currentTime + 15);
-    onSeek(newTime);
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    setPlaybackSpeed(speed);
-    setShowSpeedMenu(false);
-    // TODO: Connect to actual audio element playbackRate
-  };
-
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -96,7 +100,7 @@ export default function StickyFooterPlayer({
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-t border-slate-700/50"
     >
-      {/* Expanded Content */}
+      {/* Expanded Content - Now Playing Section */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -104,82 +108,110 @@ export default function StickyFooterPlayer({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden bg-slate-800/80 border-b border-slate-700/50 p-4"
+            className="overflow-hidden bg-slate-900/95 border-b border-slate-700/50 px-6 py-8"
           >
-            <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div>
-                  <h3 className="text-white font-semibold text-lg truncate">{title}</h3>
-                  <p className="text-slate-400 text-sm">Audio Article</p>
-                </div>
+            <div className="max-w-sm mx-auto text-center">
+              {/* Now Playing Header */}
+              <p className="text-slate-400 text-xs uppercase tracking-wider mb-6">Now Playing</p>
 
-                <div className="text-center">
-                  <p className="text-slate-400 text-sm mb-2">Now Playing</p>
-                  <div className="flex items-center justify-center gap-4">
-                    {/* Skip Back */}
-                    <Button
-                      onClick={handleSkipBack}
-                      variant="ghost"
-                      size="sm"
-                      className="text-slate-400 hover:text-white rounded-full w-10 h-10 p-0"
-                    >
-                      <SkipBack className="w-5 h-5" />
-                    </Button>
+              {/* Large Album Art */}
+              <div className="w-48 h-48 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-2xl shadow-purple-500/25 flex items-center justify-center">
+                <Headphones className="w-16 h-16 text-white/90" />
+              </div>
 
-                    {/* Main Play Button - Purple */}
-                    <Button
-                      onClick={isPlaying ? onPause : onPlay}
-                      size="lg"
-                      className="bg-purple-500 hover:bg-purple-400 text-white rounded-full w-14 h-14 hover:scale-105 transition-all duration-200"
-                    >
-                      {isPlaying ? (
-                        <Pause className="w-6 h-6 fill-current" />
-                      ) : (
-                        <Play className="w-6 h-6 fill-current ml-0.5" />
-                      )}
-                    </Button>
+              {/* Track Info */}
+              <div className="mb-8">
+                <h3 className="text-white font-bold text-xl mb-2 leading-tight">{title}</h3>
+                <p className="text-slate-400 text-sm">Audio Article</p>
+              </div>
 
-                    {/* Skip Forward */}
-                    <Button
-                      onClick={handleSkipForward}
-                      variant="ghost"
-                      size="sm"
-                      className="text-slate-400 hover:text-white rounded-full w-10 h-10 p-0"
-                    >
-                      <SkipForward className="w-5 h-5" />
-                    </Button>
+              {/* Progress Bar */}
+              <div className="mb-8">
+                <div
+                  ref={progressBarRef}
+                  className="w-full h-2 bg-slate-800 rounded-full cursor-pointer relative"
+                  onClick={handleProgressClick}
+                  onMouseMove={handleProgressDrag}
+                  onMouseDown={() => setIsDragging(true)}
+                  onMouseUp={() => setIsDragging(false)}
+                >
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-violet-400 rounded-full relative transition-all duration-150"
+                    style={{ width: `${progress}%` }}
+                  >
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg -mr-2" />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3">
-                  {/* Speed Control */}
-                  <div className="relative">
-                    <Button
-                      onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-slate-400 hover:text-white p-2 text-xs"
-                    >
-                      {playbackSpeed}x
-                    </Button>
+                {/* Time Display */}
+                <div className="flex justify-between items-center mt-2 text-xs text-slate-400">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
+              </div>
 
-                    {showSpeedMenu && (
-                      <div className="absolute bottom-12 right-0 bg-slate-800 border border-slate-700 rounded-lg p-2 min-w-[80px]">
-                        {speedOptions.map(speed => (
-                          <button
-                            key={speed}
-                            onClick={() => handleSpeedChange(speed)}
-                            className={`block w-full text-left px-2 py-1 text-sm rounded hover:bg-slate-700 ${
-                              speed === playbackSpeed ? 'text-purple-400' : 'text-slate-300'
-                            }`}
-                          >
-                            {speed}x
-                          </button>
-                        ))}
-                      </div>
-                    )}
+              {/* Main Controls */}
+              <div className="flex items-center justify-center gap-6 mb-8">
+                {/* Skip Back */}
+                <Button
+                  onClick={handleSkipBack}
+                  variant="ghost"
+                  size="lg"
+                  className="text-slate-400 hover:text-white p-4"
+                >
+                  <SkipBack className="w-8 h-8" />
+                </Button>
+
+                {/* Large Play/Pause Button */}
+                <Button
+                  onClick={isPlaying ? onPause : onPlay}
+                  size="lg"
+                  className="bg-purple-500 hover:bg-purple-400 text-white rounded-full w-16 h-16 hover:scale-105 transition-all duration-200"
+                >
+                  {isPlaying ? (
+                    <Pause className="w-8 h-8 fill-current" />
+                  ) : (
+                    <Play className="w-8 h-8 fill-current ml-1" />
+                  )}
+                </Button>
+
+                {/* Skip Forward */}
+                <Button
+                  onClick={handleSkipForward}
+                  variant="ghost"
+                  size="lg"
+                  className="text-slate-400 hover:text-white p-4"
+                >
+                  <SkipForward className="w-8 h-8" />
+                </Button>
+              </div>
+
+              {/* Secondary Controls */}
+              <div className="flex items-center justify-between">
+                {/* Speed Control */}
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-sm">Speed:</span>
+                  <div className="flex gap-1">
+                    {speedOptions.map(speed => (
+                      <Button
+                        key={speed}
+                        onClick={() => handleSpeedChange(speed)}
+                        variant="ghost"
+                        size="sm"
+                        className={`px-3 py-1 text-xs rounded-full ${
+                          speed === playbackSpeed
+                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {speed}x
+                      </Button>
+                    ))}
                   </div>
+                </div>
 
+                {/* Volume Control */}
+                <div className="flex items-center gap-3">
                   <Button
                     onClick={onMuteToggle}
                     variant="ghost"
@@ -187,9 +219,9 @@ export default function StickyFooterPlayer({
                     className="text-slate-400 hover:text-white p-2"
                   >
                     {isMuted ? (
-                      <VolumeX className="w-4 h-4" />
+                      <VolumeX className="w-5 h-5" />
                     ) : (
-                      <Volume2 className="w-4 h-4" />
+                      <Volume2 className="w-5 h-5" />
                     )}
                   </Button>
                   <div className="w-20">
