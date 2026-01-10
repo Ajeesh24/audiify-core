@@ -169,9 +169,9 @@ export default function StickyFooterPlayer({
                   className="bg-purple-500 hover:bg-purple-400 text-white rounded-full w-16 h-16 hover:scale-105 transition-all duration-200 flex items-center justify-center"
                 >
                   {isPlaying ? (
-                    <Pause className="w-6 h-6 fill-current" />
+                    <Pause className="w-7 h-7 text-white" fill="currentColor" />
                   ) : (
-                    <Play className="w-6 h-6 fill-current ml-0.5" />
+                    <Play className="w-7 h-7 text-white ml-0.5" fill="currentColor" />
                   )}
                 </Button>
 

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import HorizontalSection from '@/components/HorizontalSection';
 import StickyFooterPlayer from '@/components/StickyFooterPlayer';
+import CreateAudioModal from '@/components/CreateAudioModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AudioProvider, useAudioContext } from '@/contexts/AudioContext';
 import { AuthForm } from '@/components/AuthForm';
@@ -34,6 +35,10 @@ function AuthenticatedApp() {
   // Recent articles state
   const [recentArticles, setRecentArticles] = useState<any[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(true);
+
+  // Create Audio Modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [modalProcessing, setModalProcessing] = useState(false);
 
   // Set up auth token getter for API requests
   useEffect(() => {
@@ -68,18 +73,33 @@ function AuthenticatedApp() {
 
   // Convert recent articles to compact card format
   const convertToCompactCards = (articles: any[]) => {
-    return articles.map((article) => ({
-      id: article.job_id,
-      title: article.title || 'Untitled Article',
-      subtitle: new Date(article.created_at).toLocaleDateString(),
-      duration: article.estimated_reading_time ? article.estimated_reading_time * 60 : undefined,
-      status: article.audio ? 'ready' as const : 'error' as const,
-      gradient: 'from-purple-500 via-purple-600 to-violet-700',
-      icon: 'article',
-      type: 'personal' as const,
-      date: article.created_at,
-      articleData: article // Store original data for playback
-    }));
+    return articles.map((article) => {
+      let status: 'empty' | 'generating' | 'ready' | 'error';
+
+      // Determine status based on article state
+      if (article.status === 'processing') {
+        status = 'generating';
+      } else if (article.status === 'failed') {
+        status = 'error';
+      } else if (article.audio) {
+        status = 'ready';
+      } else {
+        status = 'error';
+      }
+
+      return {
+        id: article.job_id,
+        title: article.title || 'Untitled Article',
+        subtitle: new Date(article.created_at).toLocaleDateString(),
+        duration: article.audio?.duration || (article.estimated_reading_time ? article.estimated_reading_time * 60 : undefined),
+        status,
+        gradient: 'from-purple-500 via-purple-600 to-violet-700',
+        icon: 'article',
+        type: 'personal' as const,
+        date: article.created_at,
+        articleData: article // Store original data for playback
+      };
+    });
   };
 
   // Mock data for horizontal sections
@@ -240,9 +260,8 @@ function AuthenticatedApp() {
   const handleAudioPlay = async (audioId: string) => {
     // Handle different types of audio
     if (audioId === 'create-new') {
-      // Scroll to create audio section
-      const createSection = document.getElementById('create-audio-section');
-      createSection?.scrollIntoView({ behavior: 'smooth' });
+      // Open the create audio modal
+      setShowCreateModal(true);
       return;
     }
 
@@ -358,6 +377,134 @@ function AuthenticatedApp() {
   const handleAuthRequired = (trigger: { type: string; id: string }) => {
     // This shouldn't happen since we're already authenticated, but handle it
     console.log('Auth required for:', trigger);
+  };
+
+  // Handle modal submit for creating new audio
+  const handleCreateAudioSubmit = async (url: string, mode: 'full' | 'summary') => {
+    try {
+      setModalProcessing(true);
+      setError(null);
+
+      // Create processing request
+      const request: ArticleProcessRequest = {
+        url,
+        mode
+      };
+
+      console.log('🚀 Starting article processing from modal:', request);
+
+      // Start processing
+      const response = await audifyApi.processArticle(request);
+      console.log('✅ Article processing started:', response);
+
+      // Update state with processing job
+      setCurrentJobId(response.job_id);
+      setArticleContent(response.content);
+
+      // Create a processing audio item that will be added to the list
+      const processingArticle = {
+        job_id: response.job_id,
+        title: response.content.title,
+        url: response.content.url,
+        status: 'processing',
+        created_at: new Date().toISOString(),
+        content: response.content,
+        audio: null,
+        mode
+      };
+
+      // Add to recent articles at the beginning
+      setRecentArticles(prev => [processingArticle, ...prev]);
+
+      // Start polling for the job status
+      pollJobStatus(response.job_id);
+
+    } catch (error) {
+      console.error('❌ Failed to start processing:', error);
+      setError('Failed to start processing. Please try again.');
+      setModalProcessing(false);
+    }
+  };
+
+  // Poll job status and handle audio availability
+  const pollJobStatus = (jobId: string) => {
+    const checkStatus = async () => {
+      try {
+        const status = await audifyApi.getJobStatus(jobId);
+        console.log('📊 Job status:', status);
+
+        if (status.status === 'completed' && status.audio) {
+          // Audio is ready! Close modal and start playing
+          setModalProcessing(false);
+          setShowCreateModal(false);
+
+          // Update the article in recent articles list
+          setRecentArticles(prev =>
+            prev.map(article =>
+              article.job_id === jobId
+                ? { ...article, audio: status.audio, status: 'completed' }
+                : article
+            )
+          );
+
+          // Start playing in footer
+          console.log('🎵 Starting audio playback in footer');
+          const articleTitle = recentArticles.find(a => a.job_id === jobId)?.title || 'New Audio';
+          audioContext.setCurrentAudio(status.audio, articleTitle);
+          audioContext.play();
+
+          // Clear current job
+          setCurrentJobId(null);
+
+        } else if (status.status === 'failed') {
+          // Failed
+          setModalProcessing(false);
+          setError('Failed to generate audio. Please try again.');
+          setCurrentJobId(null);
+
+          // Update article status
+          setRecentArticles(prev =>
+            prev.map(article =>
+              article.job_id === jobId
+                ? { ...article, status: 'failed' }
+                : article
+            )
+          );
+
+        } else {
+          // Still processing - check if first chunk is available
+          if (status.audio && !audioContext.currentAudio) {
+            // First chunk available! Close modal and start playing
+            setModalProcessing(false);
+            setShowCreateModal(false);
+
+            // Update the article with partial audio
+            setRecentArticles(prev =>
+              prev.map(article =>
+                article.job_id === jobId
+                  ? { ...article, audio: status.audio, status: 'ready' }
+                  : article
+              )
+            );
+
+            // Start progressive playback in footer
+            console.log('🎵 Starting progressive audio playback in footer');
+            const articleTitle = recentArticles.find(a => a.job_id === jobId)?.title || 'New Audio';
+            audioContext.setCurrentAudio(status.audio, articleTitle);
+            audioContext.play();
+          }
+
+          // Continue polling
+          setTimeout(checkStatus, 2000);
+        }
+      } catch (error) {
+        console.error('❌ Error checking job status:', error);
+        // Continue polling despite errors
+        setTimeout(checkStatus, 5000);
+      }
+    };
+
+    checkStatus();
   };
 
   const processArticle = async () => {
@@ -875,6 +1022,14 @@ function AuthenticatedApp() {
           />
         )}
       </AnimatePresence>
+
+      {/* Create Audio Modal */}
+      <CreateAudioModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateAudioSubmit}
+        isProcessing={modalProcessing}
+      />
     </div>
   );
 }
