@@ -117,13 +117,32 @@ jobs:
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "Using image version: $IMAGE_TAG"
 
+      - name: Check for backend changes
+        id: check-backend-changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger - building backend"
+            echo "backend_changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # For push events, check if backend files changed
+          if git diff --name-only ${{ github.event.before }}..${{ github.sha }} | grep -E '^(backend/|Dockerfile|requirements\.txt)'; then
+            echo "Backend changes detected"
+            echo "backend_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No backend changes detected"
+            echo "backend_changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image with UV
+        if: steps.check-backend-changes.outputs.backend_changed == 'true'
         env:
           IMAGE_TAG: ${{ steps.get-version.outputs.image_tag }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         run: |
-          echo "🚀 Always building backend Docker image (condition temporarily removed)"
+          echo "🚀 Building backend Docker image due to detected changes"
 
           # Build Docker image with UV for faster builds
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -139,6 +158,12 @@ jobs:
           # Push to ECR
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Skip Docker build
+        if: steps.check-backend-changes.outputs.backend_changed == 'false'
+        run: |
+          echo "⏭️ Skipping Docker build - no backend changes detected"
+          echo "Existing images will be used for deployment"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

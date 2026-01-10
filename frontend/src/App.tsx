@@ -7,6 +7,8 @@ import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import RecentArticles from '@/components/RecentArticles';
+import DailyBriefCard from '@/components/DailyBriefCard';
+import StickyFooterPlayer from '@/components/StickyFooterPlayer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AuthForm } from '@/components/AuthForm';
 import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
@@ -28,12 +30,92 @@ function AuthenticatedApp() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
+  // Sticky footer player state
+  const [stickyPlayerState, setStickyPlayerState] = useState({
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    volume: 1,
+    isMuted: false
+  });
+
   // Set up auth token getter for API requests
   useEffect(() => {
     if (isConfigured) {
       setAuthTokenGetter(getAccessToken);
     }
   }, [getAccessToken, isConfigured]);
+
+  // Mock data for daily briefing cards (empty states for now)
+  const dailyBriefs = [
+    {
+      id: 'general-brief',
+      category: 'general' as const,
+      title: 'General Tech Brief',
+      date: new Date().toISOString().split('T')[0],
+      status: 'empty' as const
+    },
+    {
+      id: 'aiml-brief',
+      category: 'aiml' as const,
+      title: 'AI/ML Brief',
+      date: new Date().toISOString().split('T')[0],
+      status: 'empty' as const
+    },
+    {
+      id: 'devops-brief',
+      category: 'devops' as const,
+      title: 'DevOps Brief',
+      date: new Date().toISOString().split('T')[0],
+      status: 'empty' as const
+    }
+  ];
+
+  // Handler functions for briefing cards
+  const handleBriefPlay = (briefId: string) => {
+    // TODO: Implement briefing audio playback
+    console.log('Playing brief:', briefId);
+  };
+
+  const handleBriefPreview = (briefId: string) => {
+    // TODO: Implement briefing preview
+    console.log('Previewing brief:', briefId);
+  };
+
+  const handleAuthRequired = (trigger: { type: 'play_brief'; briefId: string }) => {
+    // This shouldn't happen since we're already authenticated, but handle it
+    console.log('Auth required for:', trigger);
+  };
+
+  // Sticky footer player handlers
+  const handleStickyPlay = () => {
+    setStickyPlayerState(prev => ({ ...prev, isPlaying: true }));
+    // TODO: Connect to actual audio element
+  };
+
+  const handleStickyPause = () => {
+    setStickyPlayerState(prev => ({ ...prev, isPlaying: false }));
+    // TODO: Connect to actual audio element
+  };
+
+  const handleStickySeek = (time: number) => {
+    setStickyPlayerState(prev => ({ ...prev, currentTime: time }));
+    // TODO: Connect to actual audio element
+  };
+
+  const handleStickyVolumeChange = (volume: number) => {
+    setStickyPlayerState(prev => ({ ...prev, volume, isMuted: volume === 0 }));
+    // TODO: Connect to actual audio element
+  };
+
+  const handleStickyMuteToggle = () => {
+    setStickyPlayerState(prev => ({
+      ...prev,
+      isMuted: !prev.isMuted,
+      volume: !prev.isMuted ? 0 : 1
+    }));
+    // TODO: Connect to actual audio element
+  };
 
   const processArticle = async () => {
     if (!url.trim()) return;
@@ -299,21 +381,62 @@ function AuthenticatedApp() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-6 sm:mb-8"
+          className="text-center mb-8"
         >
-          <p className="text-slate-400 text-base sm:text-lg leading-relaxed">
-            Transform any article into crystal-clear audio. Listen on the go.
+          <p className="text-slate-400 text-lg leading-relaxed">
+            Your daily dose of tech audio content
           </p>
         </motion.div>
 
-        {/* Main Card */}
+        {/* Daily Tech Briefs Section - Spotify Style */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
+          className="mb-12"
         >
-          <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl">
-            <CardContent className="p-4 sm:p-6 lg:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="group cursor-pointer">
+              <h2 className="text-2xl font-bold text-white group-hover:text-green-400 transition-colors duration-200">Daily Tech Briefs</h2>
+            </div>
+            <p className="text-slate-400 text-sm hover:text-slate-300 transition-colors duration-200">Updated daily at 7 AM UTC</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {dailyBriefs.map((brief) => (
+              <DailyBriefCard
+                key={brief.id}
+                brief={brief}
+                isAuthenticated={isAuthenticated}
+                onPlay={handleBriefPlay}
+                onPreview={handleBriefPreview}
+                onAuthRequired={handleAuthRequired}
+              />
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Create Your Own Audio Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="group cursor-pointer">
+              <h2 className="text-2xl font-bold text-white group-hover:text-purple-400 transition-colors duration-200">Create Your Own Audio</h2>
+            </div>
+            <p className="text-slate-400 text-sm hover:text-slate-300 transition-colors duration-200">Transform any article into audio</p>
+          </div>
+
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            transition={{ duration: 0.2 }}
+            className="group"
+          >
+            <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl hover:bg-slate-800/60 hover:border-slate-700/60 transition-all duration-300 hover:shadow-purple-500/10">
+              <CardContent className="p-4 sm:p-6 lg:p-8">
               {/* URL Input */}
               <div className="space-y-4 sm:space-y-6">
                 <div className="relative">
@@ -391,6 +514,7 @@ function AuthenticatedApp() {
             </CardContent>
           </Card>
         </motion.div>
+      </motion.div>
 
         {/* Audio Player Section - Show immediately when processing starts */}
         <AnimatePresence>
@@ -422,11 +546,31 @@ function AuthenticatedApp() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center text-slate-600 text-xs sm:text-sm mt-8 sm:mt-12 leading-relaxed"
+          className="text-center text-slate-600 text-xs sm:text-sm mt-8 sm:mt-12 mb-20 leading-relaxed"
         >
           Powered by AI • Secure authentication • Natural voice synthesis
         </motion.p>
       </div>
+
+      {/* Sticky Footer Audio Player */}
+      <AnimatePresence>
+        {audioData && audioData.audio_id !== 'loading' && articleContent?.title && (
+          <StickyFooterPlayer
+            audio={audioData}
+            title={articleContent.title}
+            isPlaying={stickyPlayerState.isPlaying}
+            currentTime={stickyPlayerState.currentTime}
+            duration={stickyPlayerState.duration}
+            volume={stickyPlayerState.volume}
+            isMuted={stickyPlayerState.isMuted}
+            onPlay={handleStickyPlay}
+            onPause={handleStickyPause}
+            onSeek={handleStickySeek}
+            onVolumeChange={handleStickyVolumeChange}
+            onMuteToggle={handleStickyMuteToggle}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
