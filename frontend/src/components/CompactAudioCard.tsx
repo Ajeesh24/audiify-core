@@ -64,37 +64,49 @@ export default function CompactAudioCard({
   const getModernGradient = (type: string, id: string) => {
     // Create unique gradient based on content type and ID for variety
     const seed = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const variation = seed % 4; // 4 different variations per type
+    const variation = seed % 8; // Increased to 8 different variations per type
 
     switch (type) {
       case 'brief':
         if (icon === 'tech') {
-          // Tech Brief - Blue/Purple/Pink flowing gradients
+          // Tech Brief - Enhanced blue/purple/cyan variations with more diversity
           const techGradients = [
             'from-blue-400 via-purple-500 to-pink-500',
             'from-cyan-300 via-blue-500 to-indigo-600',
             'from-purple-400 via-blue-500 to-cyan-400',
-            'from-pink-400 via-purple-500 to-blue-500'
+            'from-pink-400 via-purple-500 to-blue-500',
+            'from-indigo-400 via-cyan-500 to-teal-500',
+            'from-blue-500 via-violet-500 to-purple-600',
+            'from-sky-400 via-blue-600 to-indigo-700',
+            'from-teal-400 via-blue-500 to-violet-600'
           ];
           return techGradients[variation];
         }
         if (icon === 'ai') {
-          // AI Brief - Purple/Orange/Pink flowing gradients
+          // AI Brief - Enhanced purple/orange/magenta variations
           const aiGradients = [
             'from-purple-500 via-pink-500 to-orange-400',
             'from-indigo-500 via-purple-500 to-pink-400',
             'from-violet-400 via-purple-500 to-rose-400',
-            'from-purple-600 via-violet-500 to-pink-500'
+            'from-purple-600 via-violet-500 to-pink-500',
+            'from-fuchsia-500 via-purple-600 to-orange-500',
+            'from-magenta-400 via-violet-500 to-amber-400',
+            'from-purple-700 via-fuchsia-500 to-pink-600',
+            'from-indigo-600 via-purple-600 to-rose-500'
           ];
           return aiGradients[variation];
         }
         if (icon === 'devops') {
-          // DevOps Brief - Teal/Green/Blue flowing gradients
+          // DevOps Brief - Enhanced teal/green/emerald variations
           const devopsGradients = [
             'from-teal-400 via-green-500 to-blue-500',
             'from-emerald-400 via-teal-500 to-cyan-500',
             'from-green-400 via-teal-500 to-blue-400',
-            'from-cyan-400 via-teal-500 to-green-500'
+            'from-cyan-400 via-teal-500 to-green-500',
+            'from-mint-400 via-emerald-500 to-teal-600',
+            'from-green-500 via-cyan-500 to-blue-600',
+            'from-teal-500 via-green-600 to-emerald-700',
+            'from-cyan-500 via-teal-600 to-green-700'
           ];
           return devopsGradients[variation];
         }
@@ -102,31 +114,49 @@ export default function CompactAudioCard({
 
       case 'personal':
         if (id === 'create-new') {
-          // Create New - Vibrant purple/pink/orange
+          // Create New - Special vibrant gradient
           return 'from-purple-500 via-pink-500 to-orange-400';
         }
-        // User articles - Warm purple/blue gradients
+        // User articles - Enhanced warm purple/blue/pink variations
         const personalGradients = [
           'from-purple-400 via-violet-500 to-blue-400',
           'from-indigo-400 via-purple-500 to-pink-400',
           'from-violet-400 via-purple-500 to-cyan-400',
-          'from-blue-400 via-purple-500 to-rose-400'
+          'from-blue-400 via-purple-500 to-rose-400',
+          'from-fuchsia-400 via-violet-600 to-blue-500',
+          'from-purple-500 via-indigo-500 to-cyan-500',
+          'from-violet-500 via-purple-600 to-pink-500',
+          'from-indigo-500 via-violet-500 to-rose-500'
         ];
         return personalGradients[variation];
 
       case 'article':
-        // Trending articles - Varied colorful gradients
+        // Trending articles - Much more varied colorful gradients
         const trendingGradients = [
           'from-pink-400 via-rose-500 to-orange-400',
           'from-cyan-400 via-teal-500 to-green-400',
           'from-yellow-400 via-orange-500 to-red-400',
-          'from-green-400 via-emerald-500 to-teal-400'
+          'from-green-400 via-emerald-500 to-teal-400',
+          'from-amber-400 via-orange-600 to-red-500',
+          'from-lime-400 via-green-500 to-emerald-600',
+          'from-red-400 via-pink-500 to-purple-600',
+          'from-orange-400 via-amber-500 to-yellow-600'
         ];
         return trendingGradients[variation];
     }
 
-    // Fallback gradient
-    return 'from-purple-500 via-pink-500 to-blue-500';
+    // Enhanced fallback gradients for maximum variety
+    const fallbackGradients = [
+      'from-purple-500 via-pink-500 to-blue-500',
+      'from-cyan-400 via-blue-500 to-purple-600',
+      'from-green-400 via-teal-500 to-blue-500',
+      'from-orange-400 via-red-500 to-pink-600',
+      'from-indigo-500 via-purple-500 to-fuchsia-500',
+      'from-teal-500 via-green-500 to-lime-500',
+      'from-rose-400 via-pink-500 to-violet-600',
+      'from-amber-400 via-orange-500 to-red-600'
+    ];
+    return fallbackGradients[variation];
   };
 
   const modernGradient = getModernGradient(type, id);

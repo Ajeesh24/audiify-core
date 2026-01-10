@@ -116,7 +116,16 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md mx-auto"
       >
-        <div className="bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8">
+        <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
+          {/* Liquid glass background layers */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-blue-500/10" />
+          <div className="absolute inset-0 bg-gradient-to-tl from-white/5 via-transparent to-white/10" />
+
+          {/* Glass reflection */}
+          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
+
+          {/* Content with glass padding */}
+          <div className="relative z-10 p-6 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">
             Verify Your Email
           </h2>
@@ -181,7 +190,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                 Back to sign up
               </button>
             </div>
-          </form>
+            </div>
+          </div>
         </div>
       </motion.div>
     );
@@ -193,7 +203,16 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-md mx-auto"
     >
-      <div className="bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8">
+      <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
+        {/* Liquid glass background layers */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-blue-500/10" />
+        <div className="absolute inset-0 bg-gradient-to-tl from-white/5 via-transparent to-white/10" />
+
+        {/* Glass reflection */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
+
+        {/* Content with glass padding */}
+        <div className="relative z-10 p-6 sm:p-8">
         <h2 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">
           {isSignUp ? 'Create Account' : 'Welcome Back'}
         </h2>
@@ -327,6 +346,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
             </p>
           )}
         </form>
+        </div>
       </div>
     </motion.div>
   );

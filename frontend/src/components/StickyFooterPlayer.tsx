@@ -102,8 +102,16 @@ export default function StickyFooterPlayer({
       animate={{ y: 0 }}
       exit={{ y: 100 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-lg border-t border-slate-700/50"
+      className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t border-white/10 overflow-hidden"
     >
+      {/* Liquid Glass Background */}
+      <div className="absolute inset-0 bg-slate-900/30" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-800/40 via-slate-900/20 to-slate-800/30" />
+      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-transparent to-violet-500/5" />
+
+      {/* Glass reflection layer */}
+      <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/5 to-white/10" />
+
       {/* Expanded Content - Now Playing Section */}
       <AnimatePresence>
         {isExpanded && (
@@ -112,8 +120,13 @@ export default function StickyFooterPlayer({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden bg-slate-900/95 border-b border-slate-700/50 px-6 py-8"
+            className="relative overflow-hidden border-b border-white/10"
           >
+            {/* Enhanced liquid glass background for expanded section */}
+            <div className="absolute inset-0 bg-slate-800/20" />
+            <div className="absolute inset-0 bg-gradient-to-b from-purple-500/10 via-transparent to-violet-500/5" />
+
+            <div className="relative z-10 px-6 py-8">
             <div className="max-w-sm mx-auto text-center">
               {/* Now Playing Header */}
               <p className="text-slate-400 text-xs uppercase tracking-wider mb-6">Now Playing</p>
@@ -283,9 +296,13 @@ export default function StickyFooterPlayer({
         )}
       </AnimatePresence>
 
-      {/* Main Footer Bar - Spotify Style Minimal */}
-      <div className="px-4 py-3 bg-slate-900/95">
-        <div className="flex items-center justify-between gap-3">
+      {/* Main Footer Bar - Enhanced Liquid Glass */}
+      <div className="relative px-4 py-3">
+        {/* Additional glass layer for the main bar */}
+        <div className="absolute inset-0 bg-white/5" />
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-violet-500/10" />
+
+        <div className="relative z-10 flex items-center justify-between gap-3">
           {/* Left: Album Art + Track Info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Mini Album Art */}
@@ -334,13 +351,13 @@ export default function StickyFooterPlayer({
 
         {/* Minimal Progress Bar - Only when expanded is false */}
         {!isExpanded && (
-          <div className="mt-2">
+          <div className="relative z-10 mt-2">
             <div
-              className="w-full h-1 bg-slate-700 rounded-full cursor-pointer"
+              className="w-full h-1 bg-white/20 rounded-full cursor-pointer backdrop-blur-sm"
               onClick={handleProgressClick}
             >
               <div
-                className="h-full bg-gradient-to-r from-purple-500 to-violet-400 rounded-full transition-all duration-150"
+                className="h-full bg-gradient-to-r from-purple-500 to-violet-400 rounded-full transition-all duration-150 shadow-sm"
                 style={{ width: `${progress}%` }}
               />
             </div>

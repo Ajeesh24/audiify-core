@@ -40,6 +40,25 @@ function AuthenticatedApp() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
 
+  // System theme detection
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return true; // Default to dark mode
+  });
+
+  // Listen for system theme changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e: MediaQueryListEvent) => setIsDarkMode(e.matches);
+
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, []);
+
   // Set up auth token getter for API requests
   useEffect(() => {
     if (isConfigured) {
@@ -746,14 +765,39 @@ function AuthenticatedApp() {
     );
   }
 
-  // Dashboard functionality removed - articles now integrated into main page
+  // Dynamic background based on system theme
+  const getThemeBackground = () => {
+    if (isDarkMode) {
+      return 'min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950';
+    } else {
+      return 'min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100';
+    }
+  };
+
+  // Dynamic ambient effects based on theme
+  const getAmbientEffects = () => {
+    if (isDarkMode) {
+      return (
+        <>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        </>
+      );
+    } else {
+      return (
+        <>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl" />
+        </>
+      );
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 safe-area-all">
+    <div className={`${getThemeBackground()} safe-area-all`}>
       {/* Ambient background effects */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        {getAmbientEffects()}
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-6 sm:py-8 max-w-4xl container-responsive">
@@ -788,20 +832,32 @@ function AuthenticatedApp() {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r ${
+                  isDarkMode
+                    ? 'from-white via-purple-200 to-violet-300'
+                    : 'from-slate-800 via-purple-600 to-violet-700'
+                } bg-clip-text text-transparent`}>
                   Audifyy
                 </h1>
                 <div className="hidden sm:flex items-center gap-1">
                   <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />
-                  <span className="text-xs font-medium text-purple-300 px-2 py-1 bg-purple-500/20 rounded-full">
+                  <span className={`text-xs font-medium px-2 py-1 bg-purple-500/20 rounded-full ${
+                    isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                  }`}>
                     AI-Powered
                   </span>
                 </div>
               </div>
-              <p className="text-slate-400 text-xs sm:text-sm flex items-center gap-2">
+              <p className={`text-xs sm:text-sm flex items-center gap-2 ${
+                isDarkMode ? 'text-slate-400' : 'text-slate-600'
+              }`}>
                 <span>Welcome back, {user?.name || user?.email?.split('@')[0]}!</span>
-                <span className="hidden sm:inline text-slate-600">•</span>
-                <span className="hidden sm:inline text-purple-300 text-xs">Premium Experience</span>
+                <span className={`hidden sm:inline ${
+                  isDarkMode ? 'text-slate-600' : 'text-slate-400'
+                }`}>•</span>
+                <span className={`hidden sm:inline text-xs ${
+                  isDarkMode ? 'text-purple-300' : 'text-purple-600'
+                }`}>Premium Experience</span>
               </p>
             </div>
           </div>
@@ -824,7 +880,9 @@ function AuthenticatedApp() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <p className="text-slate-400 text-lg leading-relaxed">
+          <p className={`text-lg leading-relaxed ${
+            isDarkMode ? 'text-slate-400' : 'text-slate-600'
+          }`}>
             Your daily dose of tech audio content
           </p>
         </motion.div>
