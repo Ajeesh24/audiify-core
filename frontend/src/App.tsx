@@ -9,11 +9,13 @@ import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import HorizontalSection from '@/components/HorizontalSection';
 import StickyFooterPlayer from '@/components/StickyFooterPlayer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AudioProvider, useAudioContext } from '@/contexts/AudioContext';
 import { AuthForm } from '@/components/AuthForm';
 import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
 
 function AuthenticatedApp() {
   const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
+  const audioContext = useAudioContext();
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -32,15 +34,6 @@ function AuthenticatedApp() {
   // Recent articles state
   const [recentArticles, setRecentArticles] = useState<any[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(true);
-
-  // Sticky footer player state
-  const [stickyPlayerState, setStickyPlayerState] = useState({
-    isPlaying: false,
-    currentTime: 0,
-    duration: 0,
-    volume: 1,
-    isMuted: false
-  });
 
   // Set up auth token getter for API requests
   useEffect(() => {
@@ -244,7 +237,7 @@ function AuthenticatedApp() {
   ];
 
   // Handler functions for audio cards
-  const handleAudioPlay = (audioId: string) => {
+  const handleAudioPlay = async (audioId: string) => {
     // Handle different types of audio
     if (audioId === 'create-new') {
       // Scroll to create audio section
@@ -256,81 +249,69 @@ function AuthenticatedApp() {
     // Check if this is a recent article
     const recentArticle = recentArticles.find(article => article.job_id === audioId);
     if (recentArticle && recentArticle.audio) {
-      // Handle recent article audio playback
-      const audioResponse = {
-        audio_id: recentArticle.audio.audio_id,
-        url: recentArticle.audio.url || undefined,
-        size: recentArticle.audio.size,
-        storage: recentArticle.audio.storage,
-        s3_key: undefined,
-        duration: undefined,
-        expires_at: undefined
-      };
+      try {
+        // Create AudioResponse object
+        const audioResponse: AudioResponse = {
+          audio_id: recentArticle.audio.audio_id,
+          url: recentArticle.audio.url || undefined,
+          size: recentArticle.audio.size,
+          storage: recentArticle.audio.storage,
+          s3_key: undefined,
+          duration: undefined,
+          expires_at: undefined
+        };
 
-      // Set up the article content for the player
-      setAudioData(audioResponse);
-      setArticleContent({
-        title: recentArticle.title,
-        content: '',
-        summary: undefined,
-        word_count: recentArticle.word_count,
-        estimated_reading_time: recentArticle.estimated_reading_time
-      });
+        // Get the actual audio URL if needed
+        let audioUrl = audioResponse.url;
+        if (!audioUrl || (!audioUrl.startsWith('https://') || audioUrl.includes('execute-api'))) {
+          console.log('🔐 Fetching presigned URL for audio ID:', audioResponse.audio_id);
+          audioUrl = await audifyApi.getAudioPresignedUrl(audioResponse.audio_id);
+        }
 
-      // Start playing in sticky footer
-      setStickyPlayerState(prev => ({
-        ...prev,
-        isPlaying: true,
-        duration: recentArticle.estimated_reading_time ? recentArticle.estimated_reading_time * 60 : 300
-      }));
+        // Set up the audio context
+        audioContext.setCurrentAudio(audioResponse, recentArticle.title);
 
-      return;
+        // Set up the audio element
+        if (audioContext.audioRef.current && audioUrl) {
+          audioContext.audioRef.current.src = audioUrl;
+          audioContext.audioRef.current.load();
+
+          // Set up event listeners for the audio context
+          const audio = audioContext.audioRef.current;
+
+          audio.addEventListener('loadedmetadata', () => {
+            audioContext.setDuration(audio.duration);
+          });
+
+          audio.addEventListener('timeupdate', () => {
+            audioContext.setCurrentTime(audio.currentTime);
+          });
+
+          audio.addEventListener('play', () => {
+            audioContext.setIsPlaying(true);
+          });
+
+          audio.addEventListener('pause', () => {
+            audioContext.setIsPlaying(false);
+          });
+
+          // Start playing
+          await audio.play();
+        }
+
+        return;
+      } catch (error) {
+        console.error('❌ Failed to play audio:', error);
+      }
     }
 
     // TODO: Implement audio playback for briefings and other articles
     console.log('Playing audio:', audioId);
-
-    // For now, simulate audio loading for briefings
-    setStickyPlayerState(prev => ({
-      ...prev,
-      isPlaying: true,
-      duration: 300 // Mock duration
-    }));
   };
 
   const handleAuthRequired = (trigger: { type: string; id: string }) => {
     // This shouldn't happen since we're already authenticated, but handle it
     console.log('Auth required for:', trigger);
-  };
-
-  // Sticky footer player handlers
-  const handleStickyPlay = () => {
-    setStickyPlayerState(prev => ({ ...prev, isPlaying: true }));
-    // TODO: Connect to actual audio element
-  };
-
-  const handleStickyPause = () => {
-    setStickyPlayerState(prev => ({ ...prev, isPlaying: false }));
-    // TODO: Connect to actual audio element
-  };
-
-  const handleStickySeek = (time: number) => {
-    setStickyPlayerState(prev => ({ ...prev, currentTime: time }));
-    // TODO: Connect to actual audio element
-  };
-
-  const handleStickyVolumeChange = (volume: number) => {
-    setStickyPlayerState(prev => ({ ...prev, volume, isMuted: volume === 0 }));
-    // TODO: Connect to actual audio element
-  };
-
-  const handleStickyMuteToggle = () => {
-    setStickyPlayerState(prev => ({
-      ...prev,
-      isMuted: !prev.isMuted,
-      volume: !prev.isMuted ? 0 : 1
-    }));
-    // TODO: Connect to actual audio element
   };
 
   const processArticle = async () => {
@@ -818,22 +799,29 @@ function AuthenticatedApp() {
         </motion.p>
       </div>
 
+      {/* Hidden Audio Element for Shared Playback */}
+      <audio
+        ref={audioContext.audioRef}
+        preload="metadata"
+        style={{ display: 'none' }}
+      />
+
       {/* Sticky Footer Audio Player */}
       <AnimatePresence>
-        {audioData && audioData.audio_id !== 'loading' && articleContent?.title && (
+        {audioContext.currentAudio && audioContext.currentTitle && (
           <StickyFooterPlayer
-            audio={audioData}
-            title={articleContent.title}
-            isPlaying={stickyPlayerState.isPlaying}
-            currentTime={stickyPlayerState.currentTime}
-            duration={stickyPlayerState.duration}
-            volume={stickyPlayerState.volume}
-            isMuted={stickyPlayerState.isMuted}
-            onPlay={handleStickyPlay}
-            onPause={handleStickyPause}
-            onSeek={handleStickySeek}
-            onVolumeChange={handleStickyVolumeChange}
-            onMuteToggle={handleStickyMuteToggle}
+            audio={audioContext.currentAudio}
+            title={audioContext.currentTitle}
+            isPlaying={audioContext.isPlaying}
+            currentTime={audioContext.currentTime}
+            duration={audioContext.duration}
+            volume={audioContext.volume}
+            isMuted={audioContext.isMuted}
+            onPlay={audioContext.play}
+            onPause={audioContext.pause}
+            onSeek={audioContext.seek}
+            onVolumeChange={audioContext.setVolume}
+            onMuteToggle={audioContext.toggleMute}
           />
         )}
       </AnimatePresence>
@@ -844,7 +832,9 @@ function AuthenticatedApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <AuthenticatedApp />
+      <AudioProvider>
+        <AuthenticatedApp />
+      </AudioProvider>
     </AuthProvider>
   );
 }
