@@ -3,10 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-react';
+import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2, Play, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
-import RecentArticles from '@/components/RecentArticles';
 import HorizontalSection from '@/components/HorizontalSection';
 import StickyFooterPlayer from '@/components/StickyFooterPlayer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -30,6 +29,10 @@ function AuthenticatedApp() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
+  // Recent articles state
+  const [recentArticles, setRecentArticles] = useState<any[]>([]);
+  const [loadingArticles, setLoadingArticles] = useState(true);
+
   // Sticky footer player state
   const [stickyPlayerState, setStickyPlayerState] = useState({
     isPlaying: false,
@@ -45,6 +48,46 @@ function AuthenticatedApp() {
       setAuthTokenGetter(getAccessToken);
     }
   }, [getAccessToken, isConfigured]);
+
+  // Fetch recent articles
+  const fetchRecentArticles = async () => {
+    try {
+      setLoadingArticles(true);
+      const response = await audifyApi.getMyArticles();
+      // Sort articles by created_at in descending order (newest first)
+      const sortedArticles = response.articles.sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setRecentArticles(sortedArticles);
+    } catch (err) {
+      console.error('Failed to fetch articles:', err);
+      setRecentArticles([]);
+    } finally {
+      setLoadingArticles(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && isConfigured) {
+      fetchRecentArticles();
+    }
+  }, [isAuthenticated, isConfigured, refreshTrigger]);
+
+  // Convert recent articles to compact card format
+  const convertToCompactCards = (articles: any[]) => {
+    return articles.map((article) => ({
+      id: article.job_id,
+      title: article.title || 'Untitled Article',
+      subtitle: new Date(article.created_at).toLocaleDateString(),
+      duration: article.estimated_reading_time ? article.estimated_reading_time * 60 : undefined,
+      status: article.audio ? 'ready' as const : 'error' as const,
+      gradient: 'from-purple-500 via-purple-600 to-violet-700',
+      icon: '📄',
+      type: 'personal' as const,
+      date: article.created_at,
+      articleData: article // Store original data for playback
+    }));
+  };
 
   // Mock data for horizontal sections
   const techBriefItems = [
@@ -161,7 +204,8 @@ function AuthenticatedApp() {
       gradient: 'from-purple-500 via-purple-600 to-violet-700',
       icon: '✨',
       type: 'personal' as const
-    }
+    },
+    ...convertToCompactCards(recentArticles)
   ];
 
   const trendingArticleItems = [
@@ -203,16 +247,50 @@ function AuthenticatedApp() {
   const handleAudioPlay = (audioId: string) => {
     // Handle different types of audio
     if (audioId === 'create-new') {
-      // Scroll to create audio section or show modal
+      // Scroll to create audio section
       const createSection = document.getElementById('create-audio-section');
       createSection?.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
-    // TODO: Implement audio playback for briefings and articles
+    // Check if this is a recent article
+    const recentArticle = recentArticles.find(article => article.job_id === audioId);
+    if (recentArticle && recentArticle.audio) {
+      // Handle recent article audio playback
+      const audioResponse = {
+        audio_id: recentArticle.audio.audio_id,
+        url: recentArticle.audio.url || undefined,
+        size: recentArticle.audio.size,
+        storage: recentArticle.audio.storage,
+        s3_key: undefined,
+        duration: undefined,
+        expires_at: undefined
+      };
+
+      // Set up the article content for the player
+      setAudioData(audioResponse);
+      setArticleContent({
+        title: recentArticle.title,
+        content: '',
+        summary: undefined,
+        word_count: recentArticle.word_count,
+        estimated_reading_time: recentArticle.estimated_reading_time
+      });
+
+      // Start playing in sticky footer
+      setStickyPlayerState(prev => ({
+        ...prev,
+        isPlaying: true,
+        duration: recentArticle.estimated_reading_time ? recentArticle.estimated_reading_time * 60 : 300
+      }));
+
+      return;
+    }
+
+    // TODO: Implement audio playback for briefings and other articles
     console.log('Playing audio:', audioId);
 
-    // For now, simulate audio loading
+    // For now, simulate audio loading for briefings
     setStickyPlayerState(prev => ({
       ...prev,
       isPlaying: true,
@@ -489,16 +567,45 @@ function AuthenticatedApp() {
           animate={{ opacity: 1, y: 0 }}
           className="relative mb-6 sm:mb-8"
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl sm:rounded-2xl shadow-lg shadow-purple-500/25">
-              <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Modern Logo Design */}
+            <div className="relative">
+              <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-500 via-violet-500 to-indigo-600 rounded-2xl sm:rounded-3xl shadow-lg shadow-purple-500/25 relative overflow-hidden">
+                {/* Background Pattern */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+                <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-full -mr-4 -mt-4"></div>
+                <div className="absolute bottom-0 left-0 w-6 h-6 bg-white/5 rounded-full -ml-3 -mb-3"></div>
+
+                {/* Icon Stack */}
+                <div className="relative flex items-center justify-center">
+                  <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white relative z-10" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Play className="w-3 h-3 sm:w-4 sm:h-4 text-purple-200 opacity-50 translate-x-0.5 translate-y-0.5" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Animated Pulse Ring */}
+              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl border-2 border-purple-400/30 animate-pulse"></div>
+              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-500/20 to-violet-500/20 blur-xl -z-10"></div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
-                Audifyy
-              </h1>
-              <p className="text-slate-400 text-xs sm:text-sm">
-                Welcome back, {user?.name || user?.email?.split('@')[0]}!
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
+                  Audifyy
+                </h1>
+                <div className="hidden sm:flex items-center gap-1">
+                  <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />
+                  <span className="text-xs font-medium text-purple-300 px-2 py-1 bg-purple-500/20 rounded-full">
+                    AI-Powered
+                  </span>
+                </div>
+              </div>
+              <p className="text-slate-400 text-xs sm:text-sm flex items-center gap-2">
+                <span>Welcome back, {user?.name || user?.email?.split('@')[0]}!</span>
+                <span className="hidden sm:inline text-slate-600">•</span>
+                <span className="hidden sm:inline text-purple-300 text-xs">Premium Experience</span>
               </p>
             </div>
           </div>
@@ -699,9 +806,6 @@ function AuthenticatedApp() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Recent Articles Section */}
-        <RecentArticles refreshTrigger={refreshTrigger} />
 
         {/* Footer */}
         <motion.p
