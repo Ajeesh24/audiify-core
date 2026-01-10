@@ -20,8 +20,6 @@ export default function CreateAudioModal({
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
 
-  console.log('🎯 CreateAudioModal render - isOpen:', isOpen, 'isProcessing:', isProcessing);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (url.trim() && !isProcessing) {

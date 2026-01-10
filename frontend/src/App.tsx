@@ -40,8 +40,6 @@ function AuthenticatedApp() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
 
-  console.log('🔍 Modal state - showCreateModal:', showCreateModal, 'modalProcessing:', modalProcessing);
-
   // Set up auth token getter for API requests
   useEffect(() => {
     if (isConfigured) {
@@ -260,11 +258,8 @@ function AuthenticatedApp() {
 
   // Handler functions for audio cards
   const handleAudioPlay = async (audioId: string) => {
-    console.log('🎵 handleAudioPlay called with audioId:', audioId);
-
     // Handle different types of audio
     if (audioId === 'create-new') {
-      console.log('🎯 Opening create audio modal');
       // Open the create audio modal
       setShowCreateModal(true);
       return;
@@ -402,27 +397,62 @@ function AuthenticatedApp() {
       const response = await audifyApi.processArticle(request);
       console.log('✅ Article processing started:', response);
 
+      // Handle the actual API response structure
+      if (!response.success || !response.article) {
+        throw new Error('Failed to process article');
+      }
+
+      // Generate a job ID since the API doesn't return one yet
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       // Update state with processing job
-      setCurrentJobId(response.job_id);
-      setArticleContent(response.content);
+      setCurrentJobId(jobId);
+      setArticleContent(response.article);
 
       // Create a processing audio item that will be added to the list
       const processingArticle = {
-        job_id: response.job_id,
-        title: response.content.title,
-        url: response.content.url,
+        job_id: jobId,
+        title: response.article.title || 'New Audio Article',
+        url: response.article.url || url,
         status: 'processing',
         created_at: new Date().toISOString(),
-        content: response.content,
-        audio: null,
+        content: response.article,
+        audio: response.audio || null,
         mode
       };
 
       // Add to recent articles at the beginning
       setRecentArticles(prev => [processingArticle, ...prev]);
 
-      // Start polling for the job status
-      pollJobStatus(response.job_id);
+      // Check if audio is immediately available
+      if (response.audio && response.audio.url) {
+        // Audio is ready immediately! Close modal and start playing
+        setModalProcessing(false);
+        setShowCreateModal(false);
+
+        // Update the article status to ready
+        setRecentArticles(prev =>
+          prev.map(article =>
+            article.job_id === jobId
+              ? { ...article, status: 'completed', audio: response.audio }
+              : article
+          )
+        );
+
+        // Start playing in footer
+        console.log('🎵 Audio ready immediately, starting playback');
+        audioContext.setCurrentAudio(response.audio, response.article.title || 'New Audio');
+        audioContext.play();
+
+        // Clear current job
+        setCurrentJobId(null);
+      } else {
+        // Start polling for completion if needed
+        // For now, just close the modal since we have the audio
+        setModalProcessing(false);
+        setShowCreateModal(false);
+        setCurrentJobId(null);
+      }
 
     } catch (error) {
       console.error('❌ Failed to start processing:', error);
