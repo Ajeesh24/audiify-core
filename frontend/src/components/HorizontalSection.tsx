@@ -24,6 +24,7 @@ interface HorizontalSectionProps {
   onPlay: (id: string) => void;
   onAuthRequired?: (trigger: { type: string; id: string }) => void;
   showNavigationButtons?: boolean;
+  isDarkMode?: boolean;
 }
 
 export default function HorizontalSection({
@@ -33,7 +34,8 @@ export default function HorizontalSection({
   isAuthenticated,
   onPlay,
   onAuthRequired,
-  showNavigationButtons = true
+  showNavigationButtons = true,
+  isDarkMode = true
 }: HorizontalSectionProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -59,11 +61,15 @@ export default function HorizontalSection({
       {/* Section Header */}
       <div className="flex items-center justify-between mb-4 px-1">
         <div className="group cursor-pointer">
-          <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-green-400 transition-colors duration-200">
+          <h2 className={`text-xl sm:text-2xl font-bold group-hover:text-green-400 transition-colors duration-200 ${
+            isDarkMode ? 'text-white' : 'text-slate-900'
+          }`}>
             {title}
           </h2>
           {subtitle && (
-            <p className="text-sm text-slate-400 hover:text-slate-300 transition-colors duration-200">
+            <p className={`text-sm hover:text-slate-300 transition-colors duration-200 ${
+              isDarkMode ? 'text-slate-400' : 'text-slate-600'
+            }`}>
               {subtitle}
             </p>
           )}
@@ -76,7 +82,11 @@ export default function HorizontalSection({
               onClick={scrollLeft}
               variant="ghost"
               size="sm"
-              className="text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-full w-8 h-8 p-0"
+              className={`rounded-full w-8 h-8 p-0 ${
+                isDarkMode
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -84,7 +94,11 @@ export default function HorizontalSection({
               onClick={scrollRight}
               variant="ghost"
               size="sm"
-              className="text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-full w-8 h-8 p-0"
+              className={`rounded-full w-8 h-8 p-0 ${
+                isDarkMode
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
@@ -112,12 +126,12 @@ export default function HorizontalSection({
               duration={item.duration}
               date={item.date}
               status={item.status}
-              gradient={item.gradient}
               icon={item.icon}
               type={item.type}
               isAuthenticated={isAuthenticated}
               onPlay={onPlay}
               onAuthRequired={onAuthRequired}
+              isDarkMode={isDarkMode}
             />
           ))}
 

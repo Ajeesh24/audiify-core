@@ -789,6 +789,7 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          isDarkMode={isDarkMode}
         />
 
         {/* AI/ML Brief Section */}
@@ -799,6 +800,7 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          isDarkMode={isDarkMode}
         />
 
         {/* DevOps/Platform Brief Section */}
@@ -809,6 +811,7 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          isDarkMode={isDarkMode}
         />
 
         {/* Your Own Audios Section */}
@@ -820,6 +823,7 @@ function AuthenticatedApp() {
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
           showNavigationButtons={false}
+          isDarkMode={isDarkMode}
         />
 
         {/* Trending Articles Section */}
@@ -830,6 +834,7 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          isDarkMode={isDarkMode}
         />
 
         {/* Footer */}
