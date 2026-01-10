@@ -1,7 +1,6 @@
-import React from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Play, Clock, Sparkles, Globe, Brain, Server, Plus, FileText, TrendingUp } from 'lucide-react';
+import { Play, Sparkles, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface CompactAudioCardProps {
@@ -11,7 +10,6 @@ interface CompactAudioCardProps {
   duration?: number;
   date?: string;
   status?: 'empty' | 'generating' | 'ready' | 'error';
-  gradient?: string;
   icon?: string;
   type: 'brief' | 'article' | 'personal';
   isAuthenticated: boolean;
@@ -40,25 +38,6 @@ const typeConfig = {
   }
 };
 
-// Professional icon mapping
-const getIconComponent = (iconName: string) => {
-  switch (iconName) {
-    case 'tech':
-      return <Globe className="w-8 h-8 text-white" />;
-    case 'ai':
-      return <Brain className="w-8 h-8 text-white" />;
-    case 'devops':
-      return <Server className="w-8 h-8 text-white" />;
-    case 'create':
-      return <Plus className="w-8 h-8 text-white" />;
-    case 'article':
-      return <FileText className="w-8 h-8 text-white" />;
-    case 'trending':
-      return <TrendingUp className="w-8 h-8 text-white" />;
-    default:
-      return <Play className="w-8 h-8 text-white" />;
-  }
-};
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -73,7 +52,6 @@ export default function CompactAudioCard({
   duration,
   date,
   status = 'empty',
-  gradient = 'from-slate-600 to-slate-700',
   icon = '🎵',
   type,
   isAuthenticated,
@@ -83,7 +61,7 @@ export default function CompactAudioCard({
   const config = typeConfig[type];
 
   // Generate modern flowing gradients based on content type and ID
-  const getModernGradient = (type: string, status: string, id: string) => {
+  const getModernGradient = (type: string, id: string) => {
     // Create unique gradient based on content type and ID for variety
     const seed = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const variation = seed % 4; // 4 different variations per type
@@ -151,7 +129,7 @@ export default function CompactAudioCard({
     return 'from-purple-500 via-pink-500 to-blue-500';
   };
 
-  const modernGradient = getModernGradient(type, status, id);
+  const modernGradient = getModernGradient(type, id);
 
   const handlePlayClick = () => {
     // Allow clicking on "Create New Audio" card (id: 'create-new') even if empty status

@@ -93,7 +93,6 @@ function AuthenticatedApp() {
         subtitle: new Date(article.created_at).toLocaleDateString(),
         duration: article.audio?.duration || (article.estimated_reading_time ? article.estimated_reading_time * 60 : undefined),
         status,
-        gradient: 'from-purple-500 via-purple-600 to-violet-700',
         icon: 'article',
         type: 'personal' as const,
         date: article.created_at,
@@ -109,7 +108,6 @@ function AuthenticatedApp() {
       title: 'Today\'s Tech Brief',
       subtitle: 'Latest tech news',
       status: 'empty' as const,
-      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
       icon: 'tech',
       type: 'brief' as const,
       date: new Date().toISOString()
@@ -120,7 +118,6 @@ function AuthenticatedApp() {
       subtitle: 'Tech roundup',
       status: 'ready' as const,
       duration: 420,
-      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
       icon: 'tech',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
@@ -131,7 +128,6 @@ function AuthenticatedApp() {
       subtitle: 'CES highlights',
       status: 'ready' as const,
       duration: 380,
-      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
       icon: 'tech',
       type: 'brief' as const,
       date: '2026-01-08'
@@ -144,7 +140,6 @@ function AuthenticatedApp() {
       title: 'Today\'s AI Brief',
       subtitle: 'AI & ML updates',
       status: 'empty' as const,
-      gradient: 'from-orange-500 via-orange-600 to-red-600',
       icon: 'ai',
       type: 'brief' as const,
       date: new Date().toISOString()
@@ -155,7 +150,6 @@ function AuthenticatedApp() {
       subtitle: 'Model releases',
       status: 'ready' as const,
       duration: 310,
-      gradient: 'from-orange-500 via-orange-600 to-red-600',
       icon: 'ai',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
@@ -166,7 +160,6 @@ function AuthenticatedApp() {
       subtitle: 'OpenAI updates',
       status: 'ready' as const,
       duration: 290,
-      gradient: 'from-orange-500 via-orange-600 to-red-600',
       icon: 'ai',
       type: 'brief' as const,
       date: '2026-01-08'
@@ -179,7 +172,6 @@ function AuthenticatedApp() {
       title: 'Today\'s DevOps',
       subtitle: 'Platform updates',
       status: 'empty' as const,
-      gradient: 'from-green-500 via-green-600 to-emerald-700',
       icon: 'devops',
       type: 'brief' as const,
       date: new Date().toISOString()
@@ -190,7 +182,6 @@ function AuthenticatedApp() {
       subtitle: 'Cloud updates',
       status: 'ready' as const,
       duration: 240,
-      gradient: 'from-green-500 via-green-600 to-emerald-700',
       icon: 'devops',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
@@ -201,7 +192,6 @@ function AuthenticatedApp() {
       subtitle: 'Kubernetes news',
       status: 'ready' as const,
       duration: 200,
-      gradient: 'from-green-500 via-green-600 to-emerald-700',
       icon: 'devops',
       type: 'brief' as const,
       date: '2026-01-08'
@@ -214,7 +204,6 @@ function AuthenticatedApp() {
       title: 'Create New Audio',
       subtitle: 'From article URL',
       status: 'empty' as const,
-      gradient: 'from-purple-500 via-purple-600 to-violet-700',
       icon: 'create',
       type: 'personal' as const
     },
@@ -228,7 +217,6 @@ function AuthenticatedApp() {
       subtitle: 'TechCrunch',
       status: 'ready' as const,
       duration: 600,
-      gradient: 'from-cyan-500 via-cyan-600 to-blue-700',
       icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
@@ -239,7 +227,6 @@ function AuthenticatedApp() {
       subtitle: 'The Verge',
       status: 'ready' as const,
       duration: 450,
-      gradient: 'from-pink-500 via-pink-600 to-rose-700',
       icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
@@ -249,7 +236,6 @@ function AuthenticatedApp() {
       title: 'Electric Car Revolution',
       subtitle: 'Wired',
       status: 'generating' as const,
-      gradient: 'from-teal-500 via-teal-600 to-green-700',
       icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
