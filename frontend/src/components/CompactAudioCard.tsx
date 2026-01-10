@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Play, Clock, Sparkles } from 'lucide-react';
+import { Play, Clock, Sparkles, Globe, Brain, Server, Plus, FileText, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface CompactAudioCardProps {
@@ -37,6 +37,26 @@ const typeConfig = {
     readyText: 'Ready',
     generatingText: 'Processing',
     errorText: 'Failed'
+  }
+};
+
+// Professional icon mapping
+const getIconComponent = (iconName: string) => {
+  switch (iconName) {
+    case 'tech':
+      return <Globe className="w-8 h-8 text-white" />;
+    case 'ai':
+      return <Brain className="w-8 h-8 text-white" />;
+    case 'devops':
+      return <Server className="w-8 h-8 text-white" />;
+    case 'create':
+      return <Plus className="w-8 h-8 text-white" />;
+    case 'article':
+      return <FileText className="w-8 h-8 text-white" />;
+    case 'trending':
+      return <TrendingUp className="w-8 h-8 text-white" />;
+    default:
+      return <Play className="w-8 h-8 text-white" />;
   }
 };
 
@@ -121,10 +141,10 @@ export default function CompactAudioCard({
             {/* Gradient background */}
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-80`} />
 
-            {/* Icon */}
+            {/* Professional Icon */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-3xl filter drop-shadow-lg">
-                {icon}
+              <div className="filter drop-shadow-lg">
+                {getIconComponent(icon || 'default')}
               </div>
             </div>
 

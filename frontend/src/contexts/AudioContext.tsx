@@ -61,17 +61,30 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const play = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.play();
-      setIsPlaying(true);
+  const play = useCallback(async () => {
+    if (audioRef.current && currentAudio) {
+      try {
+        // Set playing state immediately for responsive UI
+        setIsPlaying(true);
+        await audioRef.current.play();
+        console.log('▶️ Audio play started successfully');
+      } catch (error) {
+        console.error('❌ Failed to play audio:', error);
+        setIsPlaying(false);
+
+        // Handle common autoplay errors
+        if (error.name === 'NotAllowedError') {
+          console.log('🎵 Autoplay blocked - user gesture required');
+        }
+      }
     }
-  }, []);
+  }, [currentAudio]);
 
   const pause = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      console.log('⏸️ Audio paused');
     }
   }, []);
 

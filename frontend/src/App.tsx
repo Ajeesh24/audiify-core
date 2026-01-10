@@ -75,7 +75,7 @@ function AuthenticatedApp() {
       duration: article.estimated_reading_time ? article.estimated_reading_time * 60 : undefined,
       status: article.audio ? 'ready' as const : 'error' as const,
       gradient: 'from-purple-500 via-purple-600 to-violet-700',
-      icon: '📄',
+      icon: 'article',
       type: 'personal' as const,
       date: article.created_at,
       articleData: article // Store original data for playback
@@ -90,7 +90,7 @@ function AuthenticatedApp() {
       subtitle: 'Latest tech news',
       status: 'empty' as const,
       gradient: 'from-blue-500 via-blue-600 to-indigo-700',
-      icon: '🌐',
+      icon: 'tech',
       type: 'brief' as const,
       date: new Date().toISOString()
     },
@@ -101,7 +101,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 420,
       gradient: 'from-blue-500 via-blue-600 to-indigo-700',
-      icon: '🌐',
+      icon: 'tech',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
     },
@@ -112,7 +112,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 380,
       gradient: 'from-blue-500 via-blue-600 to-indigo-700',
-      icon: '🌐',
+      icon: 'tech',
       type: 'brief' as const,
       date: '2026-01-08'
     }
@@ -125,7 +125,7 @@ function AuthenticatedApp() {
       subtitle: 'AI & ML updates',
       status: 'empty' as const,
       gradient: 'from-orange-500 via-orange-600 to-red-600',
-      icon: '🤖',
+      icon: 'ai',
       type: 'brief' as const,
       date: new Date().toISOString()
     },
@@ -136,7 +136,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 310,
       gradient: 'from-orange-500 via-orange-600 to-red-600',
-      icon: '🤖',
+      icon: 'ai',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
     },
@@ -147,7 +147,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 290,
       gradient: 'from-orange-500 via-orange-600 to-red-600',
-      icon: '🤖',
+      icon: 'ai',
       type: 'brief' as const,
       date: '2026-01-08'
     }
@@ -160,7 +160,7 @@ function AuthenticatedApp() {
       subtitle: 'Platform updates',
       status: 'empty' as const,
       gradient: 'from-green-500 via-green-600 to-emerald-700',
-      icon: '💻',
+      icon: 'devops',
       type: 'brief' as const,
       date: new Date().toISOString()
     },
@@ -171,7 +171,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 240,
       gradient: 'from-green-500 via-green-600 to-emerald-700',
-      icon: '💻',
+      icon: 'devops',
       type: 'brief' as const,
       date: new Date(Date.now() - 86400000).toISOString()
     },
@@ -182,7 +182,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 200,
       gradient: 'from-green-500 via-green-600 to-emerald-700',
-      icon: '💻',
+      icon: 'devops',
       type: 'brief' as const,
       date: '2026-01-08'
     }
@@ -195,7 +195,7 @@ function AuthenticatedApp() {
       subtitle: 'From article URL',
       status: 'empty' as const,
       gradient: 'from-purple-500 via-purple-600 to-violet-700',
-      icon: '✨',
+      icon: 'create',
       type: 'personal' as const
     },
     ...convertToCompactCards(recentArticles)
@@ -209,7 +209,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 600,
       gradient: 'from-cyan-500 via-cyan-600 to-blue-700',
-      icon: '📰',
+      icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
     },
@@ -220,7 +220,7 @@ function AuthenticatedApp() {
       status: 'ready' as const,
       duration: 450,
       gradient: 'from-pink-500 via-pink-600 to-rose-700',
-      icon: '📰',
+      icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
     },
@@ -230,7 +230,7 @@ function AuthenticatedApp() {
       subtitle: 'Wired',
       status: 'generating' as const,
       gradient: 'from-teal-500 via-teal-600 to-green-700',
-      icon: '📰',
+      icon: 'trending',
       type: 'article' as const,
       date: new Date().toISOString()
     }
@@ -250,6 +250,18 @@ function AuthenticatedApp() {
     const recentArticle = recentArticles.find(article => article.job_id === audioId);
     if (recentArticle && recentArticle.audio) {
       try {
+        // If this audio is already loaded and playing, just toggle play/pause
+        if (audioContext.currentAudio?.audio_id === recentArticle.audio.audio_id) {
+          if (audioContext.isPlaying) {
+            audioContext.pause();
+          } else {
+            await audioContext.play();
+          }
+          return;
+        }
+
+        console.log('🎵 Loading existing audio for:', recentArticle.title);
+
         // Create AudioResponse object
         const audioResponse: AudioResponse = {
           audio_id: recentArticle.audio.audio_id,
@@ -268,40 +280,74 @@ function AuthenticatedApp() {
           audioUrl = await audifyApi.getAudioPresignedUrl(audioResponse.audio_id);
         }
 
-        // Set up the audio context
+        // Set up the audio context first (shows player immediately)
         audioContext.setCurrentAudio(audioResponse, recentArticle.title);
 
-        // Set up the audio element
+        // Load and play the audio
         if (audioContext.audioRef.current && audioUrl) {
-          audioContext.audioRef.current.src = audioUrl;
-          audioContext.audioRef.current.load();
-
-          // Set up event listeners for the audio context
           const audio = audioContext.audioRef.current;
 
-          audio.addEventListener('loadedmetadata', () => {
+          // Stop any current playback
+          audio.pause();
+          audio.currentTime = 0;
+
+          // Simple event handlers - no duplicates
+          const onLoadedData = () => {
+            console.log('✅ Audio loaded, attempting to play');
+            // Try to play immediately when loaded
+            audio.play().then(() => {
+              console.log('▶️ Audio started playing successfully');
+            }).catch(error => {
+              console.log('🎵 Autoplay prevented, user can click play button');
+              // Don't set error state, just log it
+            });
+          };
+
+          const onLoadedMetadata = () => {
             audioContext.setDuration(audio.duration);
-          });
+          };
 
-          audio.addEventListener('timeupdate', () => {
+          const onTimeUpdate = () => {
             audioContext.setCurrentTime(audio.currentTime);
-          });
+          };
 
-          audio.addEventListener('play', () => {
+          const onPlay = () => {
             audioContext.setIsPlaying(true);
-          });
+          };
 
-          audio.addEventListener('pause', () => {
+          const onPause = () => {
             audioContext.setIsPlaying(false);
-          });
+          };
 
-          // Start playing
-          await audio.play();
+          const onEnded = () => {
+            audioContext.setIsPlaying(false);
+          };
+
+          // Remove any existing listeners
+          audio.removeEventListener('loadeddata', onLoadedData);
+          audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+          audio.removeEventListener('timeupdate', onTimeUpdate);
+          audio.removeEventListener('play', onPlay);
+          audio.removeEventListener('pause', onPause);
+          audio.removeEventListener('ended', onEnded);
+
+          // Add event listeners
+          audio.addEventListener('loadeddata', onLoadedData);
+          audio.addEventListener('loadedmetadata', onLoadedMetadata);
+          audio.addEventListener('timeupdate', onTimeUpdate);
+          audio.addEventListener('play', onPlay);
+          audio.addEventListener('pause', onPause);
+          audio.addEventListener('ended', onEnded);
+
+          // Load the audio (this is just loading an existing S3 file)
+          console.log('📁 Loading audio from S3...');
+          audio.src = audioUrl;
+          audio.load();
         }
 
         return;
       } catch (error) {
-        console.error('❌ Failed to play audio:', error);
+        console.error('❌ Failed to load audio:', error);
       }
     }
 

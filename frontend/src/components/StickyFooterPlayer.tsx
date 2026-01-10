@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Play, Pause, Volume2, VolumeX, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, ChevronUp, ChevronDown, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AudioResponse } from '@/services/api';
 
@@ -143,12 +143,19 @@ export default function StickyFooterPlayer({
       </AnimatePresence>
 
       {/* Main Footer Bar */}
-      <div className="px-4 py-3 max-w-none">
+      <div className="px-4 py-4 max-w-none bg-slate-900/95">
         <div className="flex items-center gap-4">
-          {/* Track Info */}
-          <div className="flex-shrink-0 min-w-0 flex-1 max-w-xs">
-            <h4 className="text-white font-medium text-sm truncate">{title}</h4>
-            <p className="text-slate-400 text-xs">Audio Article</p>
+          {/* Track Info with Album Art */}
+          <div className="flex items-center gap-3 flex-shrink-0 min-w-0 flex-1 max-w-xs">
+            {/* Mini Album Art */}
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg flex-shrink-0">
+              <Headphones className="w-6 h-6 text-white" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h4 className="text-white font-medium text-sm truncate">{title}</h4>
+              <p className="text-slate-400 text-xs">Audio Article</p>
+            </div>
           </div>
 
           {/* Player Controls */}
@@ -160,9 +167,9 @@ export default function StickyFooterPlayer({
               className="text-white hover:text-green-400 hover:scale-110 transition-all duration-200 p-2"
             >
               {isPlaying ? (
-                <Pause className="w-4 h-4 fill-current" />
+                <Pause className="w-5 h-5 fill-current" />
               ) : (
-                <Play className="w-4 h-4 fill-current ml-0.5" />
+                <Play className="w-5 h-5 fill-current ml-0.5" />
               )}
             </Button>
           </div>
@@ -170,10 +177,10 @@ export default function StickyFooterPlayer({
           {/* Progress Bar */}
           <div className="flex-1 mx-4 min-w-0">
             <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="flex-shrink-0">{formatTime(currentTime)}</span>
+              <span className="flex-shrink-0 w-10 text-right">{formatTime(currentTime)}</span>
               <div
                 ref={progressBarRef}
-                className="flex-1 h-1 bg-slate-600 rounded-full cursor-pointer relative group"
+                className="flex-1 h-2 bg-slate-700 rounded-full cursor-pointer relative group"
                 onClick={handleProgressClick}
                 onMouseMove={handleProgressDrag}
                 onMouseDown={() => setIsDragging(true)}
@@ -181,13 +188,13 @@ export default function StickyFooterPlayer({
                 onMouseLeave={() => setIsDragging(false)}
               >
                 <div
-                  className="h-full bg-green-500 rounded-full relative transition-all duration-150"
+                  className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full relative transition-all duration-150"
                   style={{ width: `${progress}%` }}
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mr-1.5"></div>
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mr-2"></div>
                 </div>
               </div>
-              <span className="flex-shrink-0">{formatTime(duration)}</span>
+              <span className="flex-shrink-0 w-10">{formatTime(duration)}</span>
             </div>
           </div>
 
