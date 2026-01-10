@@ -5,14 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2, Play, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import HorizontalSection from '@/components/HorizontalSection';
 import StickyFooterPlayer from '@/components/StickyFooterPlayer';
 import CreateAudioModal from '@/components/CreateAudioModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AudioProvider, useAudioContext } from '@/contexts/AudioContext';
 import { AuthForm } from '@/components/AuthForm';
-import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type JobStatusResponse } from '@/services/api';
+import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse } from '@/services/api';
 
 function AuthenticatedApp() {
   const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
@@ -20,17 +19,8 @@ function AuthenticatedApp() {
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'full' | 'summary'>('full');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [audioData, setAudioData] = useState<AudioResponse | null>(null);
-  const [progressiveAudioData, setProgressiveAudioData] = useState<{
-    is_progressive: boolean;
-    total_chunks: number;
-    completed_chunks: number;
-    expected_durations: number[];
-  } | null>(null);
-  const [articleContent, setArticleContent] = useState<ArticleContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
   // Recent articles state
   const [recentArticles, setRecentArticles] = useState<any[]>([]);
@@ -548,102 +538,6 @@ function AuthenticatedApp() {
     checkStatus();
   };
 
-  const processArticle = async () => {
-    if (!url.trim()) return;
-
-    setIsProcessing(true);
-    setError(null);
-
-    // Immediately show audio player with loading state
-    setAudioData({
-      audio_id: 'loading', // Temporary ID
-      url: undefined,
-      size: undefined,
-      s3_key: undefined,
-      storage: undefined,
-      duration: undefined,
-      expires_at: undefined
-    });
-    setArticleContent({
-      title: undefined, // Will be populated when available
-      content: '',
-      summary: undefined,
-      word_count: 0,
-      estimated_reading_time: 0
-    });
-
-    try {
-      // Step 1: Validate URL (silent)
-      const validation = await audifyApi.validateUrl(url);
-
-      if (!validation.valid) {
-        setError('Invalid or inaccessible URL. Please check the URL and try again.');
-        setAudioData(null);
-        setArticleContent(null);
-        return;
-      }
-
-      // Step 2: Start processing (silent background)
-      const request: ArticleProcessRequest = {
-        url,
-        mode,
-      };
-
-      const response: ProcessArticleResponse = await audifyApi.processArticle(
-        request,
-        () => {} // No progress updates in UI
-      );
-
-      if (!response.success) {
-        setError(response.error || 'Failed to process article');
-        setAudioData(null);
-        setArticleContent(null);
-        return;
-      }
-
-      if (response.article && response.audio) {
-        setArticleContent(response.article);
-        setAudioData(response.audio);
-        setProgressiveAudioData(response.progressive_audio || null);
-
-        // Trigger refresh of recent articles list
-        setRefreshTrigger(prev => prev + 1);
-      } else {
-        setError('Incomplete response from server');
-        setAudioData(null);
-        setArticleContent(null);
-      }
-
-    } catch (err: any) {
-      console.error('Processing error:', err);
-
-      // Handle different types of errors
-      if (err.message?.includes('Authentication required')) {
-        setError('Please sign in to process articles.');
-      } else if (err.message?.includes('Rate limit')) {
-        setError('Rate limit exceeded. Please try again in a few minutes.');
-      } else if (err.message?.includes('timeout')) {
-        setError('Request timeout. The article might be too long to process. Try a shorter article or summary mode.');
-      } else if (err.message?.includes('paywall')) {
-        setError('This article appears to be behind a paywall. Please try a different article.');
-      } else {
-        setError(err.message || 'An unexpected error occurred. Please try again.');
-      }
-
-      // Hide audio player on error
-      setAudioData(null);
-      setArticleContent(null);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isProcessing) {
-      processArticle();
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center">
@@ -938,136 +832,14 @@ function AuthenticatedApp() {
           onAuthRequired={handleAuthRequired}
         />
 
-        {/* Create Your Own Audio Section */}
-        <motion.div
-          id="create-audio-section"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-8"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="group cursor-pointer">
-              <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-purple-400 transition-colors duration-200">Convert Article to Audio</h2>
-            </div>
-            <p className="text-slate-400 text-sm hover:text-slate-300 transition-colors duration-200">Transform any article into audio</p>
-          </div>
-
-          <motion.div
-            whileHover={{ scale: 1.01 }}
-            transition={{ duration: 0.2 }}
-            className="group"
-          >
-            <Card className="bg-slate-900/50 border-slate-800/50 backdrop-blur-xl shadow-2xl hover:bg-slate-800/60 hover:border-slate-700/60 transition-all duration-300 hover:shadow-purple-500/10">
-              <CardContent className="p-4 sm:p-6 lg:p-8">
-              {/* URL Input */}
-              <div className="space-y-4 sm:space-y-6">
-                <div className="relative">
-                  <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-500">
-                    <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
-                  <Input
-                    type="url"
-                    placeholder="Paste article URL here..."
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="pl-10 sm:pl-12 h-12 sm:h-14 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-500 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 touch-manipulation"
-                    disabled={isProcessing}
-                  />
-                </div>
-
-                {/* Mode Selection */}
-                <div className="flex justify-center">
-                  <Tabs value={mode} onValueChange={(value) => setMode(value as 'full' | 'summary')} className="w-full max-w-sm sm:max-w-md">
-                    <TabsList className="w-full bg-slate-800/50 p-1 rounded-xl h-auto">
-                      <TabsTrigger
-                        value="full"
-                        className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all touch-manipulation"
-                        disabled={isProcessing}
-                      >
-                        <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                        Full Article
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="summary"
-                        className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg transition-all touch-manipulation"
-                        disabled={isProcessing}
-                      >
-                        <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                        Summary Only
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-
-                {/* Generate Button */}
-                <Button
-                  onClick={processArticle}
-                  disabled={!url.trim() || isProcessing}
-                  className="w-full h-12 sm:h-14 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white text-base sm:text-lg font-medium rounded-xl shadow-lg shadow-purple-500/25 transition-all duration-300 disabled:opacity-50 touch-manipulation"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                      <span>Generating Audio...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                      Generate Audio
-                    </>
-                  )}
-                </Button>
-
-                {/* Error Message */}
-                <AnimatePresence>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="p-3 sm:p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-center text-sm sm:text-base"
-                    >
-                      {error}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </motion.div>
-
-        {/* Audio Player Section - Show immediately when processing starts */}
-        <AnimatePresence>
-          {audioData && articleContent && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ delay: 0.2 }}
-              className="mt-6 sm:mt-8"
-            >
-              <ProgressiveAudioPlayer
-                audio={audioData}
-                content={mode === 'summary' ? articleContent.summary : articleContent.content}
-                title={articleContent.title}
-                mode={mode}
-                progressiveAudio={progressiveAudioData}
-                isLoading={isProcessing} // Pass loading state to audio player
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Footer */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-center text-slate-600 text-xs sm:text-sm mt-8 sm:mt-12 mb-20 leading-relaxed"
-        >
+          className={`text-center text-xs sm:text-sm mt-8 sm:mt-12 mb-20 leading-relaxed ${
+            isDarkMode ? 'text-slate-600' : 'text-slate-400'
+          }`}>
           Powered by AI • Secure authentication • Natural voice synthesis
         </motion.p>
       </div>

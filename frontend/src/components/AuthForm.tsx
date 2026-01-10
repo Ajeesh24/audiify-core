@@ -190,7 +190,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess }) => {
                 Back to sign up
               </button>
             </div>
-            </div>
+          </form>
           </div>
         </div>
       </motion.div>
