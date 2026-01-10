@@ -83,7 +83,8 @@ export default function CompactAudioCard({
   const config = typeConfig[type];
 
   const handlePlayClick = () => {
-    if (status !== 'ready') return;
+    // Allow clicking on "Create New Audio" card (id: 'create-new') even if empty status
+    if (status !== 'ready' && id !== 'create-new') return;
 
     if (isAuthenticated) {
       onPlay(id);
@@ -98,7 +99,7 @@ export default function CompactAudioCard({
         return {
           badge: config.emptyText,
           badgeColor: 'bg-slate-600/80 text-slate-300',
-          playable: false
+          playable: id === 'create-new' // Make "Create New Audio" card clickable
         };
       case 'generating':
         return {

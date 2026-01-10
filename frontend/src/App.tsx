@@ -40,6 +40,8 @@ function AuthenticatedApp() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
 
+  console.log('🔍 Modal state - showCreateModal:', showCreateModal, 'modalProcessing:', modalProcessing);
+
   // Set up auth token getter for API requests
   useEffect(() => {
     if (isConfigured) {
@@ -258,8 +260,11 @@ function AuthenticatedApp() {
 
   // Handler functions for audio cards
   const handleAudioPlay = async (audioId: string) => {
+    console.log('🎵 handleAudioPlay called with audioId:', audioId);
+
     // Handle different types of audio
     if (audioId === 'create-new') {
+      console.log('🎯 Opening create audio modal');
       // Open the create audio modal
       setShowCreateModal(true);
       return;
