@@ -166,12 +166,12 @@ export default function StickyFooterPlayer({
                 <Button
                   onClick={isPlaying ? onPause : onPlay}
                   size="lg"
-                  className="bg-purple-500 hover:bg-purple-400 text-white rounded-full w-16 h-16 hover:scale-105 transition-all duration-200"
+                  className="bg-purple-500 hover:bg-purple-400 text-white rounded-full w-16 h-16 hover:scale-105 transition-all duration-200 flex items-center justify-center"
                 >
                   {isPlaying ? (
-                    <Pause className="w-8 h-8 fill-current" />
+                    <Pause className="w-6 h-6 fill-current" />
                   ) : (
-                    <Play className="w-8 h-8 fill-current ml-1" />
+                    <Play className="w-6 h-6 fill-current ml-0.5" />
                   )}
                 </Button>
 
@@ -188,25 +188,46 @@ export default function StickyFooterPlayer({
 
               {/* Secondary Controls */}
               <div className="flex items-center justify-between">
-                {/* Speed Control */}
-                <div className="flex items-center gap-2">
+                {/* Speed Control - Compact Dropdown Style */}
+                <div className="flex items-center gap-3">
                   <span className="text-slate-400 text-sm">Speed:</span>
-                  <div className="flex gap-1">
-                    {speedOptions.map(speed => (
-                      <Button
-                        key={speed}
-                        onClick={() => handleSpeedChange(speed)}
-                        variant="ghost"
-                        size="sm"
-                        className={`px-3 py-1 text-xs rounded-full ${
-                          speed === playbackSpeed
-                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {speed}x
-                      </Button>
-                    ))}
+                  <div className="relative">
+                    <Button
+                      onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                      variant="ghost"
+                      size="sm"
+                      className="bg-slate-800/60 hover:bg-slate-700/80 text-white px-3 py-2 rounded-lg min-w-[60px] flex items-center gap-1"
+                    >
+                      <span className="text-sm font-medium">{playbackSpeed}x</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showSpeedMenu ? 'rotate-180' : ''}`} />
+                    </Button>
+
+                    {/* Speed Dropdown Menu */}
+                    <AnimatePresence>
+                      {showSpeedMenu && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          className="absolute bottom-12 left-0 bg-slate-800/95 backdrop-blur-sm border border-slate-700/50 rounded-lg p-1 min-w-[80px] shadow-xl z-10"
+                        >
+                          {speedOptions.map(speed => (
+                            <button
+                              key={speed}
+                              onClick={() => handleSpeedChange(speed)}
+                              className={`block w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                                speed === playbackSpeed
+                                  ? 'bg-purple-500/20 text-purple-400 font-medium'
+                                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                              }`}
+                            >
+                              {speed}x
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
 

@@ -863,11 +863,15 @@ function AuthenticatedApp() {
             duration={audioContext.duration}
             volume={audioContext.volume}
             isMuted={audioContext.isMuted}
+            playbackSpeed={audioContext.playbackSpeed}
             onPlay={audioContext.play}
             onPause={audioContext.pause}
             onSeek={audioContext.seek}
             onVolumeChange={audioContext.setVolume}
             onMuteToggle={audioContext.toggleMute}
+            onSpeedChange={audioContext.setPlaybackSpeed}
+            onSkipBack={audioContext.skipBack}
+            onSkipForward={audioContext.skipForward}
           />
         )}
       </AnimatePresence>
