@@ -82,6 +82,77 @@ export default function CompactAudioCard({
 }: CompactAudioCardProps) {
   const config = typeConfig[type];
 
+  // Generate modern flowing gradients based on content type and ID
+  const getModernGradient = (type: string, status: string, id: string) => {
+    // Create unique gradient based on content type and ID for variety
+    const seed = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const variation = seed % 4; // 4 different variations per type
+
+    switch (type) {
+      case 'brief':
+        if (icon === 'tech') {
+          // Tech Brief - Blue/Purple/Pink flowing gradients
+          const techGradients = [
+            'from-blue-400 via-purple-500 to-pink-500',
+            'from-cyan-300 via-blue-500 to-indigo-600',
+            'from-purple-400 via-blue-500 to-cyan-400',
+            'from-pink-400 via-purple-500 to-blue-500'
+          ];
+          return techGradients[variation];
+        }
+        if (icon === 'ai') {
+          // AI Brief - Purple/Orange/Pink flowing gradients
+          const aiGradients = [
+            'from-purple-500 via-pink-500 to-orange-400',
+            'from-indigo-500 via-purple-500 to-pink-400',
+            'from-violet-400 via-purple-500 to-rose-400',
+            'from-purple-600 via-violet-500 to-pink-500'
+          ];
+          return aiGradients[variation];
+        }
+        if (icon === 'devops') {
+          // DevOps Brief - Teal/Green/Blue flowing gradients
+          const devopsGradients = [
+            'from-teal-400 via-green-500 to-blue-500',
+            'from-emerald-400 via-teal-500 to-cyan-500',
+            'from-green-400 via-teal-500 to-blue-400',
+            'from-cyan-400 via-teal-500 to-green-500'
+          ];
+          return devopsGradients[variation];
+        }
+        break;
+
+      case 'personal':
+        if (id === 'create-new') {
+          // Create New - Vibrant purple/pink/orange
+          return 'from-purple-500 via-pink-500 to-orange-400';
+        }
+        // User articles - Warm purple/blue gradients
+        const personalGradients = [
+          'from-purple-400 via-violet-500 to-blue-400',
+          'from-indigo-400 via-purple-500 to-pink-400',
+          'from-violet-400 via-purple-500 to-cyan-400',
+          'from-blue-400 via-purple-500 to-rose-400'
+        ];
+        return personalGradients[variation];
+
+      case 'article':
+        // Trending articles - Varied colorful gradients
+        const trendingGradients = [
+          'from-pink-400 via-rose-500 to-orange-400',
+          'from-cyan-400 via-teal-500 to-green-400',
+          'from-yellow-400 via-orange-500 to-red-400',
+          'from-green-400 via-emerald-500 to-teal-400'
+        ];
+        return trendingGradients[variation];
+    }
+
+    // Fallback gradient
+    return 'from-purple-500 via-pink-500 to-blue-500';
+  };
+
+  const modernGradient = getModernGradient(type, status, id);
+
   const handlePlayClick = () => {
     // Allow clicking on "Create New Audio" card (id: 'create-new') even if empty status
     if (status !== 'ready' && id !== 'create-new') return;
@@ -137,42 +208,59 @@ export default function CompactAudioCard({
         backdrop-blur-sm hover:border-slate-700/60
       ">
         <CardContent className="p-0">
-          {/* Compact Cover Art */}
-          <div className="relative aspect-square bg-gradient-to-br bg-slate-800">
-            {/* Gradient background */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-80`} />
+          {/* Modern Liquid Glass Cover Art */}
+          <div className="relative aspect-square overflow-hidden">
+            {/* Flowing Gradient Background */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${modernGradient}`} />
 
-            {/* Professional Icon */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="filter drop-shadow-lg">
-                {getIconComponent(icon || 'default')}
-              </div>
+            {/* Abstract Pattern Overlay */}
+            <div className="absolute inset-0 opacity-30">
+              <div className={`absolute inset-0 bg-gradient-to-tr ${modernGradient} blur-xl scale-110 animate-pulse`} />
             </div>
 
-            {/* Status badge */}
+            {/* Liquid Glass Layer */}
+            <div className="absolute inset-0 bg-white/10 backdrop-blur-[2px]" />
+
+            {/* Glass Reflection */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent" />
+
+            {/* Subtle Noise Texture */}
+            <div
+              className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+                backgroundSize: '128px 128px'
+              }}
+            />
+
+            {/* Status badge with glass effect */}
             <div className="absolute top-2 right-2">
-              <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${statusInfo.badgeColor}`}>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full backdrop-blur-md bg-black/40 border border-white/20 text-white shadow-lg ${
+                status === 'ready' ? 'bg-green-500/20 border-green-400/50 text-green-100' :
+                status === 'generating' ? 'bg-orange-500/20 border-orange-400/50 text-orange-100' :
+                'bg-slate-500/20 border-slate-400/50 text-slate-100'
+              }`}>
                 {statusInfo.badge}
               </span>
             </div>
 
-            {/* Play button overlay */}
+            {/* Play button overlay with glass effect */}
             <motion.div
               initial={{ opacity: 0 }}
               whileHover={{ opacity: 1 }}
-              className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              className="absolute inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
             >
               <Button
                 onClick={handlePlayClick}
                 size="sm"
                 disabled={!statusInfo.playable}
                 className={`
-                  rounded-full w-10 h-10 shadow-lg
+                  rounded-full w-12 h-12 shadow-2xl backdrop-blur-md border border-white/30
                   ${statusInfo.playable
-                    ? 'bg-green-500 hover:bg-green-400 hover:scale-110 text-black'
-                    : 'bg-slate-600 cursor-not-allowed text-slate-400'
+                    ? 'bg-white/20 hover:bg-white/30 hover:scale-110 text-white shadow-white/25'
+                    : 'bg-black/20 cursor-not-allowed text-slate-400 border-slate-600/50'
                   }
-                  transition-all duration-200
+                  transition-all duration-300
                 `}
               >
                 {status === 'generating' ? (
