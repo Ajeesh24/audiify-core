@@ -7,7 +7,7 @@ import { Loader2, Headphones, Sparkles, FileText, Link2, Volume2 } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 import ProgressiveAudioPlayer from '@/components/ProgressiveAudioPlayer';
 import RecentArticles from '@/components/RecentArticles';
-import DailyBriefCard from '@/components/DailyBriefCard';
+import HorizontalSection from '@/components/HorizontalSection';
 import StickyFooterPlayer from '@/components/StickyFooterPlayer';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AuthForm } from '@/components/AuthForm';
@@ -46,43 +46,181 @@ function AuthenticatedApp() {
     }
   }, [getAccessToken, isConfigured]);
 
-  // Mock data for daily briefing cards (empty states for now)
-  const dailyBriefs = [
+  // Mock data for horizontal sections
+  const techBriefItems = [
     {
-      id: 'general-brief',
-      category: 'general' as const,
-      title: 'General Tech Brief',
-      date: new Date().toISOString().split('T')[0],
-      status: 'empty' as const
+      id: 'tech-today',
+      title: 'Today\'s Tech Brief',
+      subtitle: 'Latest tech news',
+      status: 'empty' as const,
+      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
+      icon: '🌐',
+      type: 'brief' as const,
+      date: new Date().toISOString()
     },
     {
-      id: 'aiml-brief',
-      category: 'aiml' as const,
-      title: 'AI/ML Brief',
-      date: new Date().toISOString().split('T')[0],
-      status: 'empty' as const
+      id: 'tech-yesterday',
+      title: 'Yesterday\'s Brief',
+      subtitle: 'Tech roundup',
+      status: 'ready' as const,
+      duration: 420,
+      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
+      icon: '🌐',
+      type: 'brief' as const,
+      date: new Date(Date.now() - 86400000).toISOString()
     },
     {
-      id: 'devops-brief',
-      category: 'devops' as const,
-      title: 'DevOps Brief',
-      date: new Date().toISOString().split('T')[0],
-      status: 'empty' as const
+      id: 'tech-jan8',
+      title: 'Jan 8 Brief',
+      subtitle: 'CES highlights',
+      status: 'ready' as const,
+      duration: 380,
+      gradient: 'from-blue-500 via-blue-600 to-indigo-700',
+      icon: '🌐',
+      type: 'brief' as const,
+      date: '2026-01-08'
     }
   ];
 
-  // Handler functions for briefing cards
-  const handleBriefPlay = (briefId: string) => {
-    // TODO: Implement briefing audio playback
-    console.log('Playing brief:', briefId);
+  const aimlBriefItems = [
+    {
+      id: 'aiml-today',
+      title: 'Today\'s AI Brief',
+      subtitle: 'AI & ML updates',
+      status: 'empty' as const,
+      gradient: 'from-orange-500 via-orange-600 to-red-600',
+      icon: '🤖',
+      type: 'brief' as const,
+      date: new Date().toISOString()
+    },
+    {
+      id: 'aiml-yesterday',
+      title: 'Yesterday\'s AI',
+      subtitle: 'Model releases',
+      status: 'ready' as const,
+      duration: 310,
+      gradient: 'from-orange-500 via-orange-600 to-red-600',
+      icon: '🤖',
+      type: 'brief' as const,
+      date: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: 'aiml-jan8',
+      title: 'Jan 8 AI Brief',
+      subtitle: 'OpenAI updates',
+      status: 'ready' as const,
+      duration: 290,
+      gradient: 'from-orange-500 via-orange-600 to-red-600',
+      icon: '🤖',
+      type: 'brief' as const,
+      date: '2026-01-08'
+    }
+  ];
+
+  const devopsBriefItems = [
+    {
+      id: 'devops-today',
+      title: 'Today\'s DevOps',
+      subtitle: 'Platform updates',
+      status: 'empty' as const,
+      gradient: 'from-green-500 via-green-600 to-emerald-700',
+      icon: '💻',
+      type: 'brief' as const,
+      date: new Date().toISOString()
+    },
+    {
+      id: 'devops-yesterday',
+      title: 'Yesterday\'s Platform',
+      subtitle: 'Cloud updates',
+      status: 'ready' as const,
+      duration: 240,
+      gradient: 'from-green-500 via-green-600 to-emerald-700',
+      icon: '💻',
+      type: 'brief' as const,
+      date: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: 'devops-jan8',
+      title: 'Jan 8 DevOps',
+      subtitle: 'Kubernetes news',
+      status: 'ready' as const,
+      duration: 200,
+      gradient: 'from-green-500 via-green-600 to-emerald-700',
+      icon: '💻',
+      type: 'brief' as const,
+      date: '2026-01-08'
+    }
+  ];
+
+  const yourAudioItems = [
+    {
+      id: 'create-new',
+      title: 'Create New Audio',
+      subtitle: 'From article URL',
+      status: 'empty' as const,
+      gradient: 'from-purple-500 via-purple-600 to-violet-700',
+      icon: '✨',
+      type: 'personal' as const
+    }
+  ];
+
+  const trendingArticleItems = [
+    {
+      id: 'trending-1',
+      title: 'Future of AI in 2026',
+      subtitle: 'TechCrunch',
+      status: 'ready' as const,
+      duration: 600,
+      gradient: 'from-cyan-500 via-cyan-600 to-blue-700',
+      icon: '📰',
+      type: 'article' as const,
+      date: new Date().toISOString()
+    },
+    {
+      id: 'trending-2',
+      title: 'Meta\'s New VR Headset',
+      subtitle: 'The Verge',
+      status: 'ready' as const,
+      duration: 450,
+      gradient: 'from-pink-500 via-pink-600 to-rose-700',
+      icon: '📰',
+      type: 'article' as const,
+      date: new Date().toISOString()
+    },
+    {
+      id: 'trending-3',
+      title: 'Electric Car Revolution',
+      subtitle: 'Wired',
+      status: 'generating' as const,
+      gradient: 'from-teal-500 via-teal-600 to-green-700',
+      icon: '📰',
+      type: 'article' as const,
+      date: new Date().toISOString()
+    }
+  ];
+
+  // Handler functions for audio cards
+  const handleAudioPlay = (audioId: string) => {
+    // Handle different types of audio
+    if (audioId === 'create-new') {
+      // Scroll to create audio section or show modal
+      const createSection = document.getElementById('create-audio-section');
+      createSection?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    // TODO: Implement audio playback for briefings and articles
+    console.log('Playing audio:', audioId);
+
+    // For now, simulate audio loading
+    setStickyPlayerState(prev => ({
+      ...prev,
+      isPlaying: true,
+      duration: 300 // Mock duration
+    }));
   };
 
-  const handleBriefPreview = (briefId: string) => {
-    // TODO: Implement briefing preview
-    console.log('Previewing brief:', briefId);
-  };
-
-  const handleAuthRequired = (trigger: { type: 'play_brief'; briefId: string }) => {
+  const handleAuthRequired = (trigger: { type: string; id: string }) => {
     // This shouldn't happen since we're already authenticated, but handle it
     console.log('Auth required for:', trigger);
   };
@@ -388,36 +526,60 @@ function AuthenticatedApp() {
           </p>
         </motion.div>
 
-        {/* Daily Tech Briefs Section - Spotify Style */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-12"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="group cursor-pointer">
-              <h2 className="text-2xl font-bold text-white group-hover:text-green-400 transition-colors duration-200">Daily Tech Briefs</h2>
-            </div>
-            <p className="text-slate-400 text-sm hover:text-slate-300 transition-colors duration-200">Updated daily at 7 AM UTC</p>
-          </div>
+        {/* Tech Brief Section */}
+        <HorizontalSection
+          title="Tech Brief"
+          subtitle="Latest technology news and updates"
+          items={techBriefItems}
+          isAuthenticated={isAuthenticated}
+          onPlay={handleAudioPlay}
+          onAuthRequired={handleAuthRequired}
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dailyBriefs.map((brief) => (
-              <DailyBriefCard
-                key={brief.id}
-                brief={brief}
-                isAuthenticated={isAuthenticated}
-                onPlay={handleBriefPlay}
-                onPreview={handleBriefPreview}
-                onAuthRequired={handleAuthRequired}
-              />
-            ))}
-          </div>
-        </motion.div>
+        {/* AI/ML Brief Section */}
+        <HorizontalSection
+          title="AI/ML Brief"
+          subtitle="Artificial intelligence and machine learning"
+          items={aimlBriefItems}
+          isAuthenticated={isAuthenticated}
+          onPlay={handleAudioPlay}
+          onAuthRequired={handleAuthRequired}
+        />
+
+        {/* DevOps/Platform Brief Section */}
+        <HorizontalSection
+          title="DevOps/Platform Brief"
+          subtitle="Infrastructure, cloud, and development tools"
+          items={devopsBriefItems}
+          isAuthenticated={isAuthenticated}
+          onPlay={handleAudioPlay}
+          onAuthRequired={handleAuthRequired}
+        />
+
+        {/* Your Own Audios Section */}
+        <HorizontalSection
+          title="Your Own Audios"
+          subtitle="Create and listen to your personal audio content"
+          items={yourAudioItems}
+          isAuthenticated={isAuthenticated}
+          onPlay={handleAudioPlay}
+          onAuthRequired={handleAuthRequired}
+          showNavigationButtons={false}
+        />
+
+        {/* Trending Articles Section */}
+        <HorizontalSection
+          title="Trending Articles"
+          subtitle="Popular articles converted to audio"
+          items={trendingArticleItems}
+          isAuthenticated={isAuthenticated}
+          onPlay={handleAudioPlay}
+          onAuthRequired={handleAuthRequired}
+        />
 
         {/* Create Your Own Audio Section */}
         <motion.div
+          id="create-audio-section"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -425,7 +587,7 @@ function AuthenticatedApp() {
         >
           <div className="flex items-center justify-between mb-6">
             <div className="group cursor-pointer">
-              <h2 className="text-2xl font-bold text-white group-hover:text-purple-400 transition-colors duration-200">Create Your Own Audio</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white group-hover:text-purple-400 transition-colors duration-200">Convert Article to Audio</h2>
             </div>
             <p className="text-slate-400 text-sm hover:text-slate-300 transition-colors duration-200">Transform any article into audio</p>
           </div>
