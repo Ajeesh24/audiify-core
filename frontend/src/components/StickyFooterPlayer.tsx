@@ -4,6 +4,7 @@ import { Play, Pause, Volume2, VolumeX, ChevronUp, ChevronDown, Headphones, Skip
 import { motion, AnimatePresence } from 'framer-motion';
 import { AudioResponse } from '@/services/api';
 import FullScreenAudioPlayer from './FullScreenAudioPlayer';
+import { useAudioContext } from '@/contexts/AudioContext';
 
 interface StickyFooterPlayerProps {
   audio: AudioResponse | null;
@@ -46,6 +47,9 @@ export default function StickyFooterPlayer({
   const [isDragging, setIsDragging] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Get AudioContext for progressive information
+  const audioContext = useAudioContext();
 
   // Function to handle skip controls - now properly functional
   const handleSkipBack = () => {
@@ -136,7 +140,11 @@ export default function StickyFooterPlayer({
                   onMouseUp={() => setIsDragging(false)}
                 >
                   <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-violet-400 rounded-full relative transition-all duration-150"
+                    className={`h-full rounded-full relative transition-all duration-150 ${
+                      audioContext.isProgressive
+                        ? 'bg-gradient-to-r from-purple-500 via-violet-500 to-blue-500'
+                        : 'bg-gradient-to-r from-purple-500 to-violet-400'
+                    }`}
                     style={{ width: `${progress}%` }}
                   >
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg -mr-2" />
@@ -146,7 +154,19 @@ export default function StickyFooterPlayer({
                 {/* Time Display */}
                 <div className="flex justify-between items-center mt-2 text-xs text-slate-400">
                   <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
+                  <span className="flex items-center gap-1">
+                    {formatTime(duration)}
+                    {audioContext.isProgressive && !audioContext.progressiveComplete && (
+                      <>
+                        <span className="text-purple-400">+</span>
+                        <div className="flex items-center gap-0.5">
+                          <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse"></div>
+                          <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                          <div className="w-1 h-1 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                        </div>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
 

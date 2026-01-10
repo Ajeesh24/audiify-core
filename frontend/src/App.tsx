@@ -299,8 +299,8 @@ function AuthenticatedApp() {
           audioUrl = await audifyApi.getAudioPresignedUrl(audioResponse.audio_id);
         }
 
-        // Set up the audio context first (shows player immediately)
-        audioContext.setCurrentAudio(audioResponse, recentArticle.title);
+        // Set up the audio context first (shows player immediately) - use progressive=false for existing audio
+        audioContext.setCurrentAudio(audioResponse, recentArticle.title, false);
 
         // Load and play the audio
         if (audioContext.audioRef.current && audioUrl) {
@@ -396,63 +396,64 @@ function AuthenticatedApp() {
       // Start processing
       const response = await audifyApi.processArticle(request);
       console.log('✅ Article processing started:', response);
+      console.log('🔍 Response structure - audio:', response.audio, 'article:', response.article);
 
       // Handle the actual API response structure
       if (!response.success || !response.article) {
         throw new Error('Failed to process article');
       }
 
-      // Generate a job ID since the API doesn't return one yet
+      // Use a simple timestamp-based ID for now
       const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Update state with processing job
       setCurrentJobId(jobId);
       setArticleContent(response.article);
 
-      // Create a processing audio item that will be added to the list
-      const processingArticle = {
+      // Create audio item - use the same structure as ProgressiveAudioPlayer expects
+      const audioItem = {
         job_id: jobId,
         title: response.article.title || 'New Audio Article',
         url: response.article.url || url,
-        status: 'processing',
+        status: 'completed', // Mark as completed since we have audio
         created_at: new Date().toISOString(),
         content: response.article,
-        audio: response.audio || null,
+        audio: response.audio, // This should have the audio_id and other properties
         mode
       };
 
       // Add to recent articles at the beginning
-      setRecentArticles(prev => [processingArticle, ...prev]);
+      setRecentArticles(prev => [audioItem, ...prev]);
 
-      // Check if audio is immediately available
-      if (response.audio && response.audio.url) {
-        // Audio is ready immediately! Close modal and start playing
-        setModalProcessing(false);
-        setShowCreateModal(false);
+      // Close modal immediately
+      setModalProcessing(false);
+      setShowCreateModal(false);
 
-        // Update the article status to ready
-        setRecentArticles(prev =>
-          prev.map(article =>
-            article.job_id === jobId
-              ? { ...article, status: 'completed', audio: response.audio }
-              : article
-          )
-        );
+      // Start playing audio using progressive streaming for new articles
+      if (response.audio) {
+        console.log('🎵 Starting progressive audio playback with:', response.audio);
+        console.log('🎵 Audio structure:', {
+          audio_id: response.audio.audio_id,
+          url: response.audio.url,
+          s3_key: response.audio.s3_key
+        });
 
-        // Start playing in footer
-        console.log('🎵 Audio ready immediately, starting playback');
-        audioContext.setCurrentAudio(response.audio, response.article.title || 'New Audio');
-        audioContext.play();
-
-        // Clear current job
-        setCurrentJobId(null);
+        // Use progressive flag for new audio from modal
+        try {
+          // Set the audio context with progressive=true for new audio
+          audioContext.setCurrentAudio(response.audio, response.article.title || 'New Audio', true);
+          console.log('🎵 Progressive audio context set, attempting to play...');
+          audioContext.play();
+          console.log('🎵 Progressive play command sent to audio context');
+        } catch (playError) {
+          console.error('❌ Failed to start progressive audio playback:', playError);
+        }
       } else {
-        // Start polling for completion if needed
-        // For now, just close the modal since we have the audio
-        setModalProcessing(false);
-        setShowCreateModal(false);
-        setCurrentJobId(null);
+        console.log('⚠️ No audio object in response');
       }
+
+      // Clear current job
+      setCurrentJobId(null);
 
     } catch (error) {
       console.error('❌ Failed to start processing:', error);
