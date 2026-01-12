@@ -117,14 +117,21 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md mx-auto"
       >
-        <div className={`
-          relative rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl
-          ${isDarkMode
-            ? 'bg-slate-900/95 border border-slate-700/50'
-            : 'bg-white/95 border border-slate-200'
-          }
-        `}>
-          {/* Content */}
+        <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
+          {/* Liquid glass background layers */}
+          <div className={`
+            absolute inset-0
+            ${isDarkMode
+              ? 'bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-blue-500/10'
+              : 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10'
+            }
+          `} />
+          <div className="absolute inset-0 bg-gradient-to-tl from-white/5 via-transparent to-white/10" />
+
+          {/* Glass reflection */}
+          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
+
+          {/* Content with glass padding */}
           <div className="relative z-10 p-6 sm:p-8">
             <h2 className={`
               text-xl sm:text-2xl font-bold text-center mb-2 font-['Inter']
@@ -154,10 +161,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
                   onChange={handleInputChange}
                   placeholder="Enter 6-digit code"
                   className={`
-                    w-full px-4 py-3 rounded-lg border transition-all touch-manipulation
+                    w-full px-4 py-3 rounded-xl border transition-all touch-manipulation
                     ${isDarkMode
                       ? 'bg-slate-800/50 border-slate-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-white placeholder:text-slate-500'
-                      : 'bg-slate-50 border-slate-300 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500'
+                      : 'bg-white/60 border-slate-300/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500 backdrop-blur-sm'
                     }
                   `}
                   maxLength={6}
@@ -166,10 +173,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
 
               {error && (
                 <div className={`
-                  text-sm p-3 rounded-lg border
+                  text-sm p-3 rounded-xl border
                   ${isDarkMode
                     ? 'text-red-400 bg-red-500/10 border-red-500/20'
-                    : 'text-red-600 bg-red-50 border-red-200'
+                    : 'text-red-600 bg-red-50/80 border-red-200/50 backdrop-blur-sm'
                   }
                 `}>
                   {error}
@@ -179,7 +186,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation"
+                className="w-full bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -236,14 +243,21 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
       animate={{ opacity: 1, y: 0 }}
       className="w-full max-w-md mx-auto"
     >
-      <div className={`
-        relative rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl
-        ${isDarkMode
-          ? 'bg-slate-900/95 border border-slate-700/50'
-          : 'bg-white/95 border border-slate-200'
-        }
-      `}>
-        {/* Content */}
+      <div className="relative bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
+        {/* Liquid glass background layers */}
+        <div className={`
+          absolute inset-0
+          ${isDarkMode
+            ? 'bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-blue-500/10'
+            : 'bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-pink-500/10'
+          }
+        `} />
+        <div className="absolute inset-0 bg-gradient-to-tl from-white/5 via-transparent to-white/10" />
+
+        {/* Glass reflection */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
+
+        {/* Content with glass padding */}
         <div className="relative z-10 p-6 sm:p-8">
           <h2 className={`
             text-xl sm:text-2xl font-bold text-center mb-2 font-['Inter']
@@ -282,10 +296,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
                     onChange={handleInputChange}
                     placeholder="Your name"
                     className={`
-                      w-full pl-10 sm:pl-11 pr-4 py-3 rounded-lg border transition-all touch-manipulation
+                      w-full pl-10 sm:pl-11 pr-4 py-3 rounded-xl border transition-all touch-manipulation
                       ${isDarkMode
                         ? 'bg-slate-800/50 border-slate-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-white placeholder:text-slate-500'
-                        : 'bg-slate-50 border-slate-300 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500'
+                        : 'bg-white/60 border-slate-300/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500 backdrop-blur-sm'
                       }
                     `}
                   />
@@ -312,10 +326,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
                   onChange={handleInputChange}
                   placeholder="your@email.com"
                   className={`
-                    w-full pl-10 sm:pl-11 pr-4 py-3 rounded-lg border transition-all touch-manipulation
+                    w-full pl-10 sm:pl-11 pr-4 py-3 rounded-xl border transition-all touch-manipulation
                     ${isDarkMode
                       ? 'bg-slate-800/50 border-slate-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-white placeholder:text-slate-500'
-                      : 'bg-slate-50 border-slate-300 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500'
+                      : 'bg-white/60 border-slate-300/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500 backdrop-blur-sm'
                     }
                   `}
                   required
@@ -342,10 +356,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
                   onChange={handleInputChange}
                   placeholder="••••••••"
                   className={`
-                    w-full pl-10 sm:pl-11 pr-12 py-3 rounded-lg border transition-all touch-manipulation
+                    w-full pl-10 sm:pl-11 pr-12 py-3 rounded-xl border transition-all touch-manipulation
                     ${isDarkMode
                       ? 'bg-slate-800/50 border-slate-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-white placeholder:text-slate-500'
-                      : 'bg-slate-50 border-slate-300 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500'
+                      : 'bg-white/60 border-slate-300/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500 backdrop-blur-sm'
                     }
                   `}
                   required
@@ -386,10 +400,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
                     onChange={handleInputChange}
                     placeholder="••••••••"
                     className={`
-                      w-full pl-10 sm:pl-11 pr-4 py-3 rounded-lg border transition-all touch-manipulation
+                      w-full pl-10 sm:pl-11 pr-4 py-3 rounded-xl border transition-all touch-manipulation
                       ${isDarkMode
                         ? 'bg-slate-800/50 border-slate-700/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-white placeholder:text-slate-500'
-                        : 'bg-slate-50 border-slate-300 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500'
+                        : 'bg-white/60 border-slate-300/50 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-slate-900 placeholder:text-slate-500 backdrop-blur-sm'
                       }
                     `}
                     required
@@ -400,10 +414,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
 
             {error && (
               <div className={`
-                text-sm p-3 rounded-lg border
+                text-sm p-3 rounded-xl border
                 ${isDarkMode
                   ? 'text-red-400 bg-red-500/10 border-red-500/20'
-                  : 'text-red-600 bg-red-50 border-red-200'
+                  : 'text-red-600 bg-red-50/80 border-red-200/50 backdrop-blur-sm'
                 }
               `}>
                 {error}
@@ -413,7 +427,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onSuccess, isDarkMode = true
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation shadow-lg shadow-blue-500/25"
+              className="w-full bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white py-3 rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 touch-manipulation shadow-lg shadow-blue-500/25"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
