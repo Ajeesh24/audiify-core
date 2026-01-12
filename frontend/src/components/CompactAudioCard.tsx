@@ -139,7 +139,7 @@ export default function CompactAudioCard({
       whileHover={{ y: -4, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
-      className="group cursor-pointer flex-shrink-0 w-72 sm:w-80"
+      className="group cursor-pointer flex-shrink-0 w-56 sm:w-64"
       onClick={handlePlayClick}
     >
       {/* OpenAI Academy Style Card */}
@@ -154,7 +154,7 @@ export default function CompactAudioCard({
 
         {/* Main Gradient Area - OpenAI Academy Style */}
         <div className={`
-          relative h-48 bg-gradient-to-br ${academyGradient}
+          relative h-36 bg-gradient-to-br ${academyGradient}
           flex items-center justify-center group-hover:scale-105 transition-transform duration-300
         `}>
 
@@ -188,7 +188,7 @@ export default function CompactAudioCard({
               }}
               disabled={!statusInfo.playable}
               className={`
-                w-16 h-16 rounded-full backdrop-blur-md transition-all duration-300
+                w-14 h-14 rounded-full backdrop-blur-md transition-all duration-300
                 ${statusInfo.playable
                   ? 'bg-white/90 hover:bg-white text-slate-900 hover:scale-110 shadow-lg'
                   : 'bg-slate-500/50 text-slate-300 cursor-not-allowed'
@@ -196,9 +196,9 @@ export default function CompactAudioCard({
               `}
             >
               {status === 'generating' ? (
-                <Sparkles className="w-6 h-6 animate-spin" />
+                <Sparkles className="w-5 h-5 animate-spin" />
               ) : (
-                <Play className="w-6 h-6 fill-current ml-0.5" />
+                <Play className="w-5 h-5 fill-current ml-0.5" />
               )}
             </Button>
           </motion.div>
@@ -217,10 +217,10 @@ export default function CompactAudioCard({
         </div>
 
         {/* Content Area - OpenAI Academy Typography */}
-        <div className="p-6 space-y-2">
+        <div className="p-4 space-y-2">
           {/* Title - Academy Style Typography */}
           <h3 className={`
-            text-lg font-semibold leading-snug line-clamp-2
+            text-base font-semibold leading-snug line-clamp-2
             ${isDarkMode ? 'text-white' : 'text-slate-900'}
             font-['Inter']
           `}>
