@@ -80,6 +80,34 @@ function AuthenticatedApp() {
     }
   }, [isAuthenticated, isConfigured, refreshTrigger]);
 
+  // Dynamic background based on system theme
+  const getThemeBackground = () => {
+    if (isDarkMode) {
+      return 'min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950';
+    } else {
+      return 'min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100';
+    }
+  };
+
+  // Dynamic ambient effects based on theme
+  const getAmbientEffects = () => {
+    if (isDarkMode) {
+      return (
+        <>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        </>
+      );
+    } else {
+      return (
+        <>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl" />
+        </>
+      );
+    }
+  };
+
   // Convert recent articles to compact card format
   const convertToCompactCards = (articles: any[]) => {
     return articles.map((article) => {
@@ -656,34 +684,6 @@ function AuthenticatedApp() {
       </div>
     );
   }
-
-  // Dynamic background based on system theme
-  const getThemeBackground = () => {
-    if (isDarkMode) {
-      return 'min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950';
-    } else {
-      return 'min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100';
-    }
-  };
-
-  // Dynamic ambient effects based on theme
-  const getAmbientEffects = () => {
-    if (isDarkMode) {
-      return (
-        <>
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-        </>
-      );
-    } else {
-      return (
-        <>
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-300/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl" />
-        </>
-      );
-    }
-  };
 
   return (
     <div className={`${getThemeBackground()} safe-area-all`}>
