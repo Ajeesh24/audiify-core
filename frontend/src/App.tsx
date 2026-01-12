@@ -555,7 +555,7 @@ function AuthenticatedApp() {
       <div className={`${getThemeBackground()} flex items-center justify-center p-4`}>
         {/* Ambient background effects */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          {getThemeAmbientEffects()}
+          {getAmbientEffects()}
         </div>
 
         <div className="relative z-10 w-full max-w-2xl text-center">
@@ -628,7 +628,7 @@ function AuthenticatedApp() {
       <div className={`${getThemeBackground()} flex items-center justify-center p-4`}>
         {/* Ambient background effects */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          {getThemeAmbientEffects()}
+          {getAmbientEffects()}
         </div>
 
         <div className="relative z-10 w-full max-w-md">
