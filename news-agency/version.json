@@ -1,17 +1,17 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.2",
   "news-agency": {
-    "rss-engine": "0.0.1",
-    "categorization-engine": "0.0.1",
-    "ranking-engine": "0.0.1",
-    "brief-engine": "0.0.1",
-    "audio-engine": "0.0.1",
-    "orchestrator": "0.0.1",
-    "public-api": "0.0.1",
-    "internal-api": "0.0.1"
+    "rss-engine": "0.0.2",
+    "categorization-engine": "0.0.2",
+    "ranking-engine": "0.0.2",
+    "brief-engine": "0.0.2",
+    "audio-engine": "0.0.2",
+    "orchestrator": "0.0.2",
+    "public-api": "0.0.2",
+    "internal-api": "0.0.2"
   },
   "build": {
-    "date": "2025-01-13",
+    "date": "2025-01-14",
     "git_sha": "",
     "build_number": ""
   }
