@@ -69,16 +69,13 @@ jobs:
         run: |
           cd ${{ env.NEWS_AGENCY_PATH }}
 
-          # Get base version from version.json
-          BASE_VERSION=$(jq -r '.version' version.json)
+          # Get base version from version.json (just semantic version)
+          VERSION=$(jq -r '.version' version.json)
 
-          # Generate build number (YYYY.MM.DD.BUILD_COUNT)
+          # Generate build info for tracking (but don't include in tag)
           DATE_PART=$(date +"%Y.%m.%d")
           BUILD_COUNT=$(git rev-list --count HEAD -- .)
           BUILD_NUMBER="${DATE_PART}.${BUILD_COUNT}"
-
-          # Create full version: BASE_VERSION-BUILD_NUMBER
-          VERSION="${BASE_VERSION}-${BUILD_NUMBER}"
 
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "build_number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
