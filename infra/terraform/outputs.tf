@@ -123,7 +123,7 @@ output "news_public_api_url" {
 
 output "news_audio_bucket_name" {
   description = "Name of the S3 bucket for news audio files"
-  value       = aws_s3_bucket.audio_files.bucket
+  value       = aws_s3_bucket.audio_storage.bucket
 }
 
 output "news_dynamodb_tables" {
@@ -131,7 +131,7 @@ output "news_dynamodb_tables" {
   value = {
     articles = aws_dynamodb_table.articles.name
     briefs   = aws_dynamodb_table.briefs.name
-    jobs     = aws_dynamodb_table.jobs.name
+    jobs     = aws_dynamodb_table.job_status.name
   }
 }
 
@@ -179,7 +179,7 @@ output "deployment_summary" {
       region           = data.aws_region.current.name
     }
     news_agency = {
-      audio_bucket      = aws_s3_bucket.audio_files.bucket
+      audio_bucket      = aws_s3_bucket.audio_storage.bucket
       public_api        = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
       pipeline_schedule = aws_cloudwatch_event_rule.daily_news_pipeline.schedule_expression
     }
