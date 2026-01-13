@@ -3,12 +3,35 @@ Metrics utility for tracking cost, performance, and usage
 """
 
 import time
+from decimal import Decimal
 from datetime import datetime
 from typing import Dict, Any, Optional
 from config import COST_OPTIMIZATION, OPENAI_SETTINGS
 from utils.logger import get_logger, log_cost_metrics
 
 logger = get_logger(__name__)
+
+
+def to_decimal(value):
+    """Convert float to Decimal for DynamoDB compatibility"""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    return value
+
+
+def clean_for_dynamodb(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert all float values to Decimal for DynamoDB"""
+    cleaned = {}
+    for key, value in data.items():
+        if isinstance(value, float):
+            cleaned[key] = Decimal(str(value))
+        elif isinstance(value, dict):
+            cleaned[key] = clean_for_dynamodb(value)
+        elif isinstance(value, list):
+            cleaned[key] = [to_decimal(item) if isinstance(item, (int, float)) else item for item in value]
+        else:
+            cleaned[key] = value
+    return cleaned
 
 
 class CostTracker:

@@ -3,6 +3,7 @@ DynamoDB Job Model
 Tracks daily pipeline execution and engine status
 """
 from datetime import datetime
+from decimal import Decimal
 from typing import Dict, Any, Optional, List
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -36,7 +37,24 @@ class Job:
 
     def __init__(self):
         self.dynamodb = boto3.resource('dynamodb')
-        self.table = self.dynamodb.Table('briefing_jobs')
+        # Use environment variable for table name
+        import os
+        table_name = os.getenv('JOBS_TABLE', 'audifyy-news-jobs-dev')
+        self.table = self.dynamodb.Table(table_name)
+
+    def _clean_for_dynamodb(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert all float values to Decimal for DynamoDB"""
+        cleaned = {}
+        for key, value in data.items():
+            if isinstance(value, float):
+                cleaned[key] = Decimal(str(value))
+            elif isinstance(value, dict):
+                cleaned[key] = self._clean_for_dynamodb(value)
+            elif isinstance(value, list):
+                cleaned[key] = [Decimal(str(item)) if isinstance(item, float) else item for item in value]
+            else:
+                cleaned[key] = value
+        return cleaned
 
     def create_daily_job(self, date: str) -> Dict[str, Any]:
         """
@@ -122,8 +140,9 @@ class Job:
         }
 
         try:
+            cleaned_data = self._clean_for_dynamodb(job_data)
             self.table.put_item(
-                Item=job_data,
+                Item=cleaned_data,
                 ConditionExpression='attribute_not_exists(#date)',
                 ExpressionAttributeNames={'#date': 'date'}
             )

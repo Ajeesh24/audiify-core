@@ -3,6 +3,7 @@ DynamoDB Article Model
 Stores raw article metadata for the news pipeline
 """
 from datetime import datetime
+from decimal import Decimal
 from typing import Dict, Any, Optional, List
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -19,7 +20,24 @@ class Article:
 
     def __init__(self):
         self.dynamodb = boto3.resource('dynamodb')
-        self.table = self.dynamodb.Table('news_articles')
+        # Use environment variable for table name
+        import os
+        table_name = os.getenv('ARTICLES_TABLE', 'audifyy-articles-dev')
+        self.table = self.dynamodb.Table(table_name)
+
+    def _clean_for_dynamodb(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert all float values to Decimal for DynamoDB"""
+        cleaned = {}
+        for key, value in data.items():
+            if isinstance(value, float):
+                cleaned[key] = Decimal(str(value))
+            elif isinstance(value, dict):
+                cleaned[key] = self._clean_for_dynamodb(value)
+            elif isinstance(value, list):
+                cleaned[key] = [Decimal(str(item)) if isinstance(item, float) else item for item in value]
+            else:
+                cleaned[key] = value
+        return cleaned
 
     def create_article(self,
                       url: str,
@@ -65,8 +83,9 @@ class Article:
         }
 
         try:
+            cleaned_data = self._clean_for_dynamodb(article_data)
             self.table.put_item(
-                Item=article_data,
+                Item=cleaned_data,
                 ConditionExpression='attribute_not_exists(#url)',
                 ExpressionAttributeNames={'#url': 'url'}
             )

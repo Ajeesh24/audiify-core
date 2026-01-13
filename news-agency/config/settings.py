@@ -19,14 +19,14 @@ AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 
 # DynamoDB Table Names
 DYNAMODB_TABLES = {
-    'articles': os.getenv('ARTICLES_TABLE', 'news_articles'),
-    'briefs': os.getenv('BRIEFS_TABLE', 'news_briefs'),
-    'jobs': os.getenv('JOBS_TABLE', 'briefing_jobs')
+    'articles': os.getenv('ARTICLES_TABLE', 'audifyy-articles-dev'),
+    'briefs': os.getenv('BRIEFS_TABLE', 'audifyy-briefs-dev'),
+    'jobs': os.getenv('JOBS_TABLE', 'audifyy-news-jobs-dev')
 }
 
 # S3 Storage Settings
 S3_SETTINGS = {
-    'bucket_name': os.getenv('S3_BUCKET', 'audifyy-news-audio'),
+    'bucket_name': os.getenv('AUDIO_BUCKET', 'audifyy-news-audio-dev'),
     'audio_prefix': 'audio/',
     'archive_prefix': 'archive/',
     'region': AWS_REGION
