@@ -42,6 +42,33 @@ class Job:
         table_name = os.getenv('JOBS_TABLE', 'audifyy-news-jobs-dev')
         self.table = self.dynamodb.Table(table_name)
 
+    def _get_job_key(self, date: str) -> Dict[str, str]:
+        """Get the DynamoDB key structure for a job"""
+        job_id = f"daily-pipeline-{date}"
+
+        # Get the most recent job for this date to get the exact timestamp
+        try:
+            response = self.table.query(
+                KeyConditionExpression=Key('job_id').eq(job_id),
+                ScanIndexForward=False,  # Get latest first
+                Limit=1
+            )
+            items = response.get('Items', [])
+            if items:
+                return {
+                    'job_id': job_id,
+                    'timestamp': items[0]['timestamp']
+                }
+        except:
+            pass
+
+        # If no existing job found, this shouldn't happen in update operations
+        # but return a structure anyway
+        return {
+            'job_id': job_id,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+
     def _clean_for_dynamodb(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert all float values to Decimal for DynamoDB"""
         cleaned = {}
@@ -66,12 +93,14 @@ class Job:
         Returns:
             Created job data
         """
-        job_id = str(uuid.uuid4())
+        # Create predictable job_id based on date for easy retrieval
+        job_id = f"daily-pipeline-{date}"
         now = datetime.utcnow().isoformat()
 
         job_data = {
             'job_id': job_id,
-            'date': date,  # Primary key - one job per date
+            'timestamp': now,  # Range key for the table
+            'date': date,  # Keep date for querying and logic
             'status': JobStatus.PENDING.value,
             'created_at': now,
             'updated_at': now,
@@ -140,22 +169,34 @@ class Job:
         }
 
         try:
+            # Check if job already exists for this date
+            existing_job = self.get_job(date)
+            if existing_job:
+                return existing_job
+
             cleaned_data = self._clean_for_dynamodb(job_data)
-            self.table.put_item(
-                Item=cleaned_data,
-                ConditionExpression='attribute_not_exists(#date)',
-                ExpressionAttributeNames={'#date': 'date'}
-            )
+            self.table.put_item(Item=cleaned_data)
             return job_data
-        except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
-            # Job already exists for this date, return existing
+
+        except Exception as e:
+            print(f"Error creating job: {e}")
             return self.get_job(date) or job_data
 
     def get_job(self, date: str) -> Optional[Dict[str, Any]]:
         """Get job by date"""
         try:
-            response = self.table.get_item(Key={'date': date})
-            return response.get('Item')
+            # Use predictable job_id and query with both keys
+            job_id = f"daily-pipeline-{date}"
+
+            # Since we need both keys for DynamoDB query, we'll scan for the latest job for this date
+            response = self.table.query(
+                KeyConditionExpression=Key('job_id').eq(job_id),
+                ScanIndexForward=False,  # Get latest first
+                Limit=1
+            )
+
+            items = response.get('Items', [])
+            return items[0] if items else None
         except Exception as e:
             print(f"Error fetching job for date {date}: {e}")
             return None
@@ -202,8 +243,9 @@ class Job:
             if job_status_update:
                 expression_values[':job_status'] = JobStatus.RUNNING.value
 
+            job_key = self._get_job_key(date)
             self.table.update_item(
-                Key={'date': date},
+                Key=job_key,
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values,
                 ExpressionAttributeNames=expression_names
@@ -249,8 +291,9 @@ class Job:
                     update_expression += f", engines.{engine_name}.{key} = :{key}"
                     expression_values[f":{key}"] = value
 
+            job_key = self._get_job_key(date)
             self.table.update_item(
-                Key={'date': date},
+                Key=job_key,
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values,
                 ExpressionAttributeNames=expression_names
@@ -276,7 +319,7 @@ class Job:
                 duration = int((end_time - start_time).total_seconds())
 
             self.table.update_item(
-                Key={'date': date},
+                Key=self._get_job_key(date),
                 UpdateExpression=f"""
                     SET engines.{engine_name}.#status = :status,
                         engines.{engine_name}.completed_at = :completed_at,
@@ -344,7 +387,7 @@ class Job:
         # Update job status
         now = datetime.utcnow().isoformat()
         self.table.update_item(
-            Key={'date': date},
+            Key=self._get_job_key(date),
             UpdateExpression="""
                 SET #status = :status,
                     completed_at = :completed_at,
@@ -372,7 +415,7 @@ class Job:
             })
 
             self.table.update_item(
-                Key={'date': date},
+                Key=self._get_job_key(date),
                 UpdateExpression="SET error_summary = :error_summary",
                 ExpressionAttributeValues={':error_summary': error_summary}
             )
