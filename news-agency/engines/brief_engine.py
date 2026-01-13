@@ -16,7 +16,7 @@ from config import (
     get_all_categories, get_classification_prompt
 )
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
-from utils.metrics import cost_tracker, time_operation, estimate_tokens
+from utils.metrics import cost_tracker, time_operation, estimate_tokens, calculate_llm_cost
 
 logger = get_logger(__name__)
 
@@ -161,7 +161,7 @@ class BriefGenerationEngine:
 
         # Estimate cost and check budget
         estimated_tokens = estimate_tokens(prompt) + BRIEF_GENERATION['target_word_count'][category] // 3
-        estimated_cost = cost_tracker.calculate_llm_cost(prompt, self.model, estimated_tokens // 2)
+        estimated_cost = calculate_llm_cost(prompt, self.model, estimated_tokens // 2)
 
         if cost_tracker.get_daily_cost() + estimated_cost > COST_OPTIMIZATION['target_daily_cost']:
             return {

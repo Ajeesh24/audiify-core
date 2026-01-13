@@ -86,7 +86,10 @@ class AudioGenerationEngine:
             briefs = self.brief_model.get_briefs_by_date(date)
             if not briefs:
                 logger.warning(f"No briefs found for date {date}")
-                self.job_model.complete_engine(date, 'audio_engine', results)
+                self.job_model.complete_engine(date, 'audio_engine', {
+                    'audio_files_generated': results['audio_files_generated'],
+                    'total_audio_duration': results['total_audio_duration']
+                })
                 return results
 
             # Process each brief

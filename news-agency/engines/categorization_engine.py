@@ -18,7 +18,7 @@ from config import (
     get_all_categories, RELEVANCE_FACTORS
 )
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
-from utils.metrics import cost_tracker, time_operation, estimate_tokens
+from utils.metrics import cost_tracker, time_operation, estimate_tokens, calculate_llm_cost
 
 logger = get_logger(__name__)
 
@@ -244,7 +244,7 @@ class CategorizationEngine:
 
             # Estimate tokens for cost control
             estimated_tokens = estimate_tokens(prompt) + 50  # +50 for response
-            estimated_cost = cost_tracker.calculate_llm_cost(prompt, self.model, 50)
+            estimated_cost = calculate_llm_cost(prompt, self.model, 50)
 
             # Check if this request would exceed budget
             if cost_tracker.get_daily_cost() + estimated_cost > COST_OPTIMIZATION['target_daily_cost']:
