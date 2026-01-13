@@ -93,15 +93,102 @@ resource "aws_dynamodb_table" "briefs" {
   tags = local.common_tags
 }
 
+# Jobs table for pipeline orchestration and job tracking
+resource "aws_dynamodb_table" "news_jobs" {
+  name         = "${local.project_name}-news-jobs-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "job_id"
+  range_key    = "timestamp"
+
+  attribute {
+    name = "job_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "timestamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "job_type"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "JobTypeIndex"
+    hash_key        = "job_type"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  tags = local.common_tags
+}
+
 # ===============================
-# Use existing resources from backend.tf
+# S3 Bucket for News Audio Files
 # ===============================
 
-# Reference existing DynamoDB jobs table from backend.tf
-# (aws_dynamodb_table.job_status already exists)
+resource "aws_s3_bucket" "news_audio_files" {
+  bucket = "${local.project_name}-news-audio-${var.environment}-${random_string.suffix.result}"
+  tags   = local.common_tags
+}
 
-# Reference existing S3 audio bucket from backend.tf
-# (aws_s3_bucket.audio_storage already exists)
+resource "aws_s3_bucket_versioning" "news_audio_files_versioning" {
+  bucket = aws_s3_bucket.news_audio_files.id
+  versioning_configuration {
+    status = "Disabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "news_audio_files_encryption" {
+  bucket = aws_s3_bucket.news_audio_files.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "news_audio_files_pab" {
+  bucket = aws_s3_bucket.news_audio_files.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "news_audio_files_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.news_audio_files_pab]
+  bucket     = aws_s3_bucket.news_audio_files.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowPublicRead"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.news_audio_files.arn}/*"
+      }
+    ]
+  })
+}
 
 # ===============================
 # ECR Repositories for Lambda Images
@@ -251,8 +338,8 @@ resource "aws_iam_role_policy" "news_lambda_policy" {
           "${aws_dynamodb_table.articles.arn}/index/*",
           aws_dynamodb_table.briefs.arn,
           "${aws_dynamodb_table.briefs.arn}/index/*",
-          aws_dynamodb_table.job_status.arn,
-          "${aws_dynamodb_table.job_status.arn}/index/*"
+          aws_dynamodb_table.news_jobs.arn,
+          "${aws_dynamodb_table.news_jobs.arn}/index/*"
         ]
       },
       {
@@ -264,8 +351,8 @@ resource "aws_iam_role_policy" "news_lambda_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.audio_storage.arn,
-          "${aws_s3_bucket.audio_storage.arn}/*"
+          aws_s3_bucket.news_audio_files.arn,
+          "${aws_s3_bucket.news_audio_files.arn}/*"
         ]
       },
       {
@@ -296,9 +383,9 @@ resource "aws_lambda_function" "news_rss_engine" {
     variables = {
       ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE     = aws_dynamodb_table.job_status.name
+      JOBS_TABLE     = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET   = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -320,9 +407,9 @@ resource "aws_lambda_function" "news_categorization_engine" {
     variables = {
       ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE     = aws_dynamodb_table.job_status.name
+      JOBS_TABLE     = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET   = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -344,9 +431,9 @@ resource "aws_lambda_function" "news_ranking_engine" {
     variables = {
       ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE     = aws_dynamodb_table.job_status.name
+      JOBS_TABLE     = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET   = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -369,10 +456,10 @@ resource "aws_lambda_function" "news_brief_engine" {
       ENVIRONMENT        = var.environment
       ARTICLES_TABLE     = aws_dynamodb_table.articles.name
       BRIEFS_TABLE       = aws_dynamodb_table.briefs.name
-      JOBS_TABLE         = aws_dynamodb_table.job_status.name
+      JOBS_TABLE         = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY     = var.openai_api_key
       ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET       = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET       = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -395,10 +482,10 @@ resource "aws_lambda_function" "news_audio_engine" {
       ENVIRONMENT        = var.environment
       ARTICLES_TABLE     = aws_dynamodb_table.articles.name
       BRIEFS_TABLE       = aws_dynamodb_table.briefs.name
-      JOBS_TABLE         = aws_dynamodb_table.job_status.name
+      JOBS_TABLE         = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY     = var.openai_api_key
       ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET       = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET       = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -421,10 +508,10 @@ resource "aws_lambda_function" "news_orchestrator" {
       ENVIRONMENT                    = var.environment
       ARTICLES_TABLE                 = aws_dynamodb_table.articles.name
       BRIEFS_TABLE                   = aws_dynamodb_table.briefs.name
-      JOBS_TABLE                     = aws_dynamodb_table.job_status.name
+      JOBS_TABLE                     = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY                 = var.openai_api_key
       ELEVENLABS_API_KEY             = var.elevenlabs_api_key
-      AUDIO_BUCKET                   = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET                   = aws_s3_bucket.news_audio_files.bucket
       RSS_ENGINE_FUNCTION            = aws_lambda_function.news_rss_engine.function_name
       CATEGORIZATION_ENGINE_FUNCTION = aws_lambda_function.news_categorization_engine.function_name
       RANKING_ENGINE_FUNCTION        = aws_lambda_function.news_ranking_engine.function_name
@@ -452,8 +539,8 @@ resource "aws_lambda_function" "news_public_api" {
       ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
       BRIEFS_TABLE   = aws_dynamodb_table.briefs.name
-      JOBS_TABLE     = aws_dynamodb_table.job_status.name
-      AUDIO_BUCKET   = aws_s3_bucket.audio_storage.bucket
+      JOBS_TABLE     = aws_dynamodb_table.news_jobs.name
+      AUDIO_BUCKET   = aws_s3_bucket.news_audio_files.bucket
     }
   }
 
@@ -476,10 +563,10 @@ resource "aws_lambda_function" "news_internal_api" {
       ENVIRONMENT                    = var.environment
       ARTICLES_TABLE                 = aws_dynamodb_table.articles.name
       BRIEFS_TABLE                   = aws_dynamodb_table.briefs.name
-      JOBS_TABLE                     = aws_dynamodb_table.job_status.name
+      JOBS_TABLE                     = aws_dynamodb_table.news_jobs.name
       OPENAI_API_KEY                 = var.openai_api_key
       ELEVENLABS_API_KEY             = var.elevenlabs_api_key
-      AUDIO_BUCKET                   = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET                   = aws_s3_bucket.news_audio_files.bucket
       RSS_ENGINE_FUNCTION            = aws_lambda_function.news_rss_engine.function_name
       CATEGORIZATION_ENGINE_FUNCTION = aws_lambda_function.news_categorization_engine.function_name
       RANKING_ENGINE_FUNCTION        = aws_lambda_function.news_ranking_engine.function_name
