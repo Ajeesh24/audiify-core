@@ -115,12 +115,61 @@ output "cognito_region" {
   value       = data.aws_region.current.name
 }
 
+# News Agency outputs
+output "news_public_api_url" {
+  description = "News Agency Public API URL"
+  value       = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
+}
+
+output "news_audio_bucket_name" {
+  description = "Name of the S3 bucket for news audio files"
+  value       = aws_s3_bucket.audio_files.bucket
+}
+
+output "news_dynamodb_tables" {
+  description = "News Agency DynamoDB table names"
+  value = {
+    articles = aws_dynamodb_table.articles.name
+    briefs   = aws_dynamodb_table.briefs.name
+    jobs     = aws_dynamodb_table.jobs.name
+  }
+}
+
+output "news_lambda_functions" {
+  description = "News Agency Lambda function names"
+  value = {
+    rss_engine            = aws_lambda_function.news_rss_engine.function_name
+    categorization_engine = aws_lambda_function.news_categorization_engine.function_name
+    ranking_engine        = aws_lambda_function.news_ranking_engine.function_name
+    brief_engine          = aws_lambda_function.news_brief_engine.function_name
+    audio_engine          = aws_lambda_function.news_audio_engine.function_name
+    orchestrator          = aws_lambda_function.news_orchestrator.function_name
+    public_api            = aws_lambda_function.news_public_api.function_name
+    internal_api          = aws_lambda_function.news_internal_api.function_name
+  }
+}
+
+output "news_ecr_repositories" {
+  description = "News Agency ECR repository URLs"
+  value = {
+    rss_engine            = aws_ecr_repository.news_rss_engine.repository_url
+    categorization_engine = aws_ecr_repository.news_categorization_engine.repository_url
+    ranking_engine        = aws_ecr_repository.news_ranking_engine.repository_url
+    brief_engine          = aws_ecr_repository.news_brief_engine.repository_url
+    audio_engine          = aws_ecr_repository.news_audio_engine.repository_url
+    orchestrator          = aws_ecr_repository.news_orchestrator.repository_url
+    public_api            = aws_ecr_repository.news_public_api.repository_url
+    internal_api          = aws_ecr_repository.news_internal_api.repository_url
+  }
+}
+
 # Summary output for easy reference
 output "deployment_summary" {
   description = "Summary of deployed resources"
   value = {
     frontend_url    = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
     backend_api_url = "https://${aws_api_gateway_rest_api.backend_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
+    news_api_url    = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
     environment     = var.environment
     region          = data.aws_region.current.name
     cognito = {
@@ -128,6 +177,11 @@ output "deployment_summary" {
       client_id        = aws_cognito_user_pool_client.main.id
       identity_pool_id = aws_cognito_identity_pool.main.id
       region           = data.aws_region.current.name
+    }
+    news_agency = {
+      audio_bucket = aws_s3_bucket.audio_files.bucket
+      public_api   = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
+      pipeline_schedule = aws_cloudwatch_event_rule.daily_news_pipeline.schedule_expression
     }
   }
 }

@@ -16,13 +16,13 @@ variable "environment" {
 }
 
 variable "image_tag" {
-  description = "Docker image tag for Lambda function (semantic version: major.minor.patch)"
+  description = "Docker image tag for Lambda function (semantic version or latest)"
   type        = string
-  default     = "0.0.1"
+  default     = "latest"
 
   validation {
-    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.image_tag))
-    error_message = "Image tag must be a semantic version (e.g., 1.2.3)."
+    condition     = can(regex("^(latest|[0-9]+\\.[0-9]+\\.[0-9]+(-.+)?)$", var.image_tag))
+    error_message = "Image tag must be 'latest' or a semantic version (e.g., 1.2.3 or 1.0.0-2025.01.13.42)."
   }
 }
 
@@ -47,6 +47,13 @@ variable "certificate_arn" {
 variable "openai_api_key" {
   description = "OpenAI API key for TTS and LLM services"
   type        = string
+  sensitive   = true
+}
+
+variable "elevenlabs_api_key" {
+  description = "ElevenLabs API key for audio generation (optional)"
+  type        = string
+  default     = ""
   sensitive   = true
 }
 

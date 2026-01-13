@@ -1,0 +1,466 @@
+name: Deploy News Agency
+
+# Required GitHub Secrets:
+# - OPENAI_API_KEY: OpenAI API key for LLM and TTS services
+# - ELEVENLABS_API_KEY: ElevenLabs API key for audio generation (optional)
+# - AWS_GITHUB_TRUST_ROLE: AWS IAM role for GitHub Actions authentication
+# - AWS_DEPLOYMENT_ROLE: AWS IAM role for deployment permissions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'news-agency/**'
+      - '.github/workflows/deploy-news-agency.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      force_deploy:
+        description: "Force deploy all engines (rebuilds all containers)"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: ap-southeast-2
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.11"
+  NEWS_AGENCY_PATH: ./news-agency
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Detect changes in news-agency components
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rss: ${{ steps.changes.outputs.rss }}
+      categorization: ${{ steps.changes.outputs.categorization }}
+      ranking: ${{ steps.changes.outputs.ranking }}
+      brief: ${{ steps.changes.outputs.brief }}
+      audio: ${{ steps.changes.outputs.audio }}
+      orchestrator: ${{ steps.changes.outputs.orchestrator }}
+      api: ${{ steps.changes.outputs.api }}
+      config: ${{ steps.changes.outputs.config }}
+      force_all: ${{ github.event.inputs.force_deploy || 'false' }}
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version and build number
+        id: version
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+
+          # Get base version from version.json
+          BASE_VERSION=$(jq -r '.version' version.json)
+
+          # Generate build number (YYYY.MM.DD.BUILD_COUNT)
+          DATE_PART=$(date +"%Y.%m.%d")
+          BUILD_COUNT=$(git rev-list --count HEAD -- .)
+          BUILD_NUMBER="${DATE_PART}.${BUILD_COUNT}"
+
+          # Create full version: BASE_VERSION-BUILD_NUMBER
+          VERSION="${BASE_VERSION}-${BUILD_NUMBER}"
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+
+          echo "📦 Version: ${VERSION}"
+          echo "🔢 Build Number: ${BUILD_NUMBER}"
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            rss:
+              - 'news-agency/engines/rss_engine.py'
+              - 'news-agency/docker/Dockerfile.rss'
+            categorization:
+              - 'news-agency/engines/categorization_engine.py'
+              - 'news-agency/docker/Dockerfile.categorization'
+            ranking:
+              - 'news-agency/engines/ranking_engine.py'
+              - 'news-agency/docker/Dockerfile.ranking'
+            brief:
+              - 'news-agency/engines/brief_engine.py'
+              - 'news-agency/docker/Dockerfile.brief'
+            audio:
+              - 'news-agency/engines/audio_engine.py'
+              - 'news-agency/docker/Dockerfile.audio'
+            orchestrator:
+              - 'news-agency/services/pipeline_orchestrator.py'
+              - 'news-agency/docker/Dockerfile.orchestrator'
+            api:
+              - 'news-agency/api/**'
+              - 'news-agency/docker/Dockerfile.*-api'
+            config:
+              - 'news-agency/config/**'
+              - 'news-agency/models/**'
+              - 'news-agency/services/**'
+              - 'news-agency/utils/**'
+              - 'news-agency/requirements.txt'
+              - 'news-agency/version.json'
+
+  # Build and deploy each engine as a separate job for parallel execution
+  deploy-rss-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.rss == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push RSS Engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-rss-engine
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+
+          echo "🏗️ Building RSS Engine ${IMAGE_TAG}"
+          docker build -f docker/Dockerfile.rss -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "📤 Pushing RSS Engine images"
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "✅ RSS Engine pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-rss-engine-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-rss-engine:${{ needs.detect-changes.outputs.version }}
+
+  deploy-categorization-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.categorization == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Categorization Engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-categorization-engine
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.categorization -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-categorization-engine-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-categorization-engine:${{ needs.detect-changes.outputs.version }}
+
+  deploy-ranking-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ranking == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Ranking Engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-ranking-engine
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.ranking -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-ranking-engine-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-ranking-engine:${{ needs.detect-changes.outputs.version }}
+
+  deploy-brief-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.brief == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Brief Engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-brief-engine
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.brief -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-brief-engine-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-brief-engine:${{ needs.detect-changes.outputs.version }}
+
+  deploy-audio-engine:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.audio == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Audio Engine
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-audio-engine
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.audio -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-audio-engine-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-audio-engine:${{ needs.detect-changes.outputs.version }}
+
+  deploy-orchestrator:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.orchestrator == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Orchestrator
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-orchestrator
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.orchestrator -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-orchestrator-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-orchestrator:${{ needs.detect-changes.outputs.version }}
+
+  deploy-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api == 'true' || needs.detect-changes.outputs.force_all == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Public API
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-public-api
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.public-api -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Build and push Internal API
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: audifyy/news-internal-api
+          IMAGE_TAG: ${{ needs.detect-changes.outputs.version }}
+        run: |
+          cd ${{ env.NEWS_AGENCY_PATH }}
+          docker build -f docker/Dockerfile.internal-api -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda functions
+        run: |
+          aws lambda update-function-code \
+            --function-name audifyy-news-public-api-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-public-api:${{ needs.detect-changes.outputs.version }}
+
+          aws lambda update-function-code \
+            --function-name audifyy-news-internal-api-${{ github.event.inputs.environment || 'dev' }} \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/audifyy/news-internal-api:${{ needs.detect-changes.outputs.version }}
+
+  # Test deployment with a simple health check
+  test-deployment:
+    needs: [deploy-rss-engine, deploy-categorization-engine, deploy-ranking-engine, deploy-brief-engine, deploy-audio-engine, deploy-orchestrator, deploy-api]
+    if: always() && !cancelled() && !failure()
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test Internal API Health Check
+        run: |
+          # Wait for function to be updated
+          sleep 30
+
+          # Invoke health check function
+          aws lambda invoke \
+            --function-name audifyy-news-internal-api-${{ github.event.inputs.environment || 'dev' }} \
+            --payload '{"httpMethod": "GET", "path": "/internal/health"}' \
+            response.json
+
+          cat response.json
+
+          # Check if health check passed
+          if grep -q '"success": true' response.json; then
+            echo "✅ Health check passed!"
+          else
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+
+  # Notify deployment completion
+  notify:
+    needs: [test-deployment, detect-changes]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "## News Agency Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ needs.detect-changes.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Number**: ${{ needs.detect-changes.outputs.build_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Git SHA**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ needs.test-deployment.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.test-deployment.result }}" == "success" ]]; then
+            echo "🎉 News Agency deployment completed successfully!"
+          else
+            echo "💥 News Agency deployment failed. Check the logs for details."
+            exit 1
+          fi

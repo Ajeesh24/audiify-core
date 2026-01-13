@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "news-agency": {
+    "rss-engine": "1.0.0",
+    "categorization-engine": "1.0.0",
+    "ranking-engine": "1.0.0",
+    "brief-engine": "1.0.0",
+    "audio-engine": "1.0.0",
+    "orchestrator": "1.0.0",
+    "public-api": "1.0.0",
+    "internal-api": "1.0.0"
+  },
+  "build": {
+    "date": "2025-01-13",
+    "git_sha": "",
+    "build_number": ""
+  }
+}
