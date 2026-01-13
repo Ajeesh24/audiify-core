@@ -179,8 +179,8 @@ output "deployment_summary" {
       region           = data.aws_region.current.name
     }
     news_agency = {
-      audio_bucket = aws_s3_bucket.audio_files.bucket
-      public_api   = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
+      audio_bucket      = aws_s3_bucket.audio_files.bucket
+      public_api        = "https://${aws_api_gateway_rest_api.news_public_api.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
       pipeline_schedule = aws_cloudwatch_event_rule.daily_news_pipeline.schedule_expression
     }
   }

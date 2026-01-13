@@ -7,10 +7,10 @@
 
 # Articles table for storing raw and processed articles
 resource "aws_dynamodb_table" "articles" {
-  name           = "${local.project_name}-articles-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "article_id"
-  range_key      = "date"
+  name         = "${local.project_name}-articles-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "article_id"
+  range_key    = "date"
 
   attribute {
     name = "article_id"
@@ -33,15 +33,17 @@ resource "aws_dynamodb_table" "articles" {
   }
 
   global_secondary_index {
-    name     = "DateCategoryIndex"
-    hash_key = "date"
-    range_key = "category"
+    name            = "DateCategoryIndex"
+    hash_key        = "date"
+    range_key       = "category"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name     = "StatusIndex"
-    hash_key = "status"
-    range_key = "date"
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "date"
+    projection_type = "ALL"
   }
 
   tags = local.common_tags
@@ -49,10 +51,10 @@ resource "aws_dynamodb_table" "articles" {
 
 # Briefs table for storing generated daily briefs
 resource "aws_dynamodb_table" "briefs" {
-  name           = "${local.project_name}-briefs-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "brief_id"
-  range_key      = "date"
+  name         = "${local.project_name}-briefs-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "brief_id"
+  range_key    = "date"
 
   attribute {
     name = "brief_id"
@@ -75,15 +77,17 @@ resource "aws_dynamodb_table" "briefs" {
   }
 
   global_secondary_index {
-    name     = "DateCategoryIndex"
-    hash_key = "date"
-    range_key = "category"
+    name            = "DateCategoryIndex"
+    hash_key        = "date"
+    range_key       = "category"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name     = "StatusIndex"
-    hash_key = "status"
-    range_key = "date"
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "date"
+    projection_type = "ALL"
   }
 
   tags = local.common_tags
@@ -91,10 +95,10 @@ resource "aws_dynamodb_table" "briefs" {
 
 # Jobs table for pipeline orchestration and job tracking
 resource "aws_dynamodb_table" "jobs" {
-  name           = "${local.project_name}-jobs-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "job_id"
-  range_key      = "timestamp"
+  name         = "${local.project_name}-jobs-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "job_id"
+  range_key    = "timestamp"
 
   attribute {
     name = "job_id"
@@ -117,15 +121,17 @@ resource "aws_dynamodb_table" "jobs" {
   }
 
   global_secondary_index {
-    name     = "JobTypeIndex"
-    hash_key = "job_type"
-    range_key = "timestamp"
+    name            = "JobTypeIndex"
+    hash_key        = "job_type"
+    range_key       = "timestamp"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
-    name     = "StatusIndex"
-    hash_key = "status"
-    range_key = "timestamp"
+    name            = "StatusIndex"
+    hash_key        = "status"
+    range_key       = "timestamp"
+    projection_type = "ALL"
   }
 
   tags = local.common_tags
@@ -375,11 +381,11 @@ resource "aws_lambda_function" "news_rss_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
+      JOBS_TABLE     = aws_dynamodb_table.jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -399,11 +405,11 @@ resource "aws_lambda_function" "news_categorization_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
+      JOBS_TABLE     = aws_dynamodb_table.jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -423,11 +429,11 @@ resource "aws_lambda_function" "news_ranking_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
+      JOBS_TABLE     = aws_dynamodb_table.jobs.name
       OPENAI_API_KEY = var.openai_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      AUDIO_BUCKET   = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -447,13 +453,13 @@ resource "aws_lambda_function" "news_brief_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
-      ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      BRIEFS_TABLE = aws_dynamodb_table.briefs.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
-      OPENAI_API_KEY = var.openai_api_key
+      ENVIRONMENT        = var.environment
+      ARTICLES_TABLE     = aws_dynamodb_table.articles.name
+      BRIEFS_TABLE       = aws_dynamodb_table.briefs.name
+      JOBS_TABLE         = aws_dynamodb_table.jobs.name
+      OPENAI_API_KEY     = var.openai_api_key
       ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      AUDIO_BUCKET       = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -473,13 +479,13 @@ resource "aws_lambda_function" "news_audio_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
-      ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      BRIEFS_TABLE = aws_dynamodb_table.briefs.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
-      OPENAI_API_KEY = var.openai_api_key
+      ENVIRONMENT        = var.environment
+      ARTICLES_TABLE     = aws_dynamodb_table.articles.name
+      BRIEFS_TABLE       = aws_dynamodb_table.briefs.name
+      JOBS_TABLE         = aws_dynamodb_table.jobs.name
+      OPENAI_API_KEY     = var.openai_api_key
       ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      AUDIO_BUCKET       = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -499,18 +505,18 @@ resource "aws_lambda_function" "news_orchestrator" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
-      ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      BRIEFS_TABLE = aws_dynamodb_table.briefs.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
-      OPENAI_API_KEY = var.openai_api_key
-      ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
-      RSS_ENGINE_FUNCTION = aws_lambda_function.news_rss_engine.function_name
+      ENVIRONMENT                    = var.environment
+      ARTICLES_TABLE                 = aws_dynamodb_table.articles.name
+      BRIEFS_TABLE                   = aws_dynamodb_table.briefs.name
+      JOBS_TABLE                     = aws_dynamodb_table.jobs.name
+      OPENAI_API_KEY                 = var.openai_api_key
+      ELEVENLABS_API_KEY             = var.elevenlabs_api_key
+      AUDIO_BUCKET                   = aws_s3_bucket.audio_files.bucket
+      RSS_ENGINE_FUNCTION            = aws_lambda_function.news_rss_engine.function_name
       CATEGORIZATION_ENGINE_FUNCTION = aws_lambda_function.news_categorization_engine.function_name
-      RANKING_ENGINE_FUNCTION = aws_lambda_function.news_ranking_engine.function_name
-      BRIEF_ENGINE_FUNCTION = aws_lambda_function.news_brief_engine.function_name
-      AUDIO_ENGINE_FUNCTION = aws_lambda_function.news_audio_engine.function_name
+      RANKING_ENGINE_FUNCTION        = aws_lambda_function.news_ranking_engine.function_name
+      BRIEF_ENGINE_FUNCTION          = aws_lambda_function.news_brief_engine.function_name
+      AUDIO_ENGINE_FUNCTION          = aws_lambda_function.news_audio_engine.function_name
     }
   }
 
@@ -530,11 +536,11 @@ resource "aws_lambda_function" "news_public_api" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT    = var.environment
       ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      BRIEFS_TABLE = aws_dynamodb_table.briefs.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
+      BRIEFS_TABLE   = aws_dynamodb_table.briefs.name
+      JOBS_TABLE     = aws_dynamodb_table.jobs.name
+      AUDIO_BUCKET   = aws_s3_bucket.audio_files.bucket
     }
   }
 
@@ -554,19 +560,19 @@ resource "aws_lambda_function" "news_internal_api" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
-      ARTICLES_TABLE = aws_dynamodb_table.articles.name
-      BRIEFS_TABLE = aws_dynamodb_table.briefs.name
-      JOBS_TABLE = aws_dynamodb_table.jobs.name
-      OPENAI_API_KEY = var.openai_api_key
-      ELEVENLABS_API_KEY = var.elevenlabs_api_key
-      AUDIO_BUCKET = aws_s3_bucket.audio_files.bucket
-      RSS_ENGINE_FUNCTION = aws_lambda_function.news_rss_engine.function_name
+      ENVIRONMENT                    = var.environment
+      ARTICLES_TABLE                 = aws_dynamodb_table.articles.name
+      BRIEFS_TABLE                   = aws_dynamodb_table.briefs.name
+      JOBS_TABLE                     = aws_dynamodb_table.jobs.name
+      OPENAI_API_KEY                 = var.openai_api_key
+      ELEVENLABS_API_KEY             = var.elevenlabs_api_key
+      AUDIO_BUCKET                   = aws_s3_bucket.audio_files.bucket
+      RSS_ENGINE_FUNCTION            = aws_lambda_function.news_rss_engine.function_name
       CATEGORIZATION_ENGINE_FUNCTION = aws_lambda_function.news_categorization_engine.function_name
-      RANKING_ENGINE_FUNCTION = aws_lambda_function.news_ranking_engine.function_name
-      BRIEF_ENGINE_FUNCTION = aws_lambda_function.news_brief_engine.function_name
-      AUDIO_ENGINE_FUNCTION = aws_lambda_function.news_audio_engine.function_name
-      ORCHESTRATOR_FUNCTION = aws_lambda_function.news_orchestrator.function_name
+      RANKING_ENGINE_FUNCTION        = aws_lambda_function.news_ranking_engine.function_name
+      BRIEF_ENGINE_FUNCTION          = aws_lambda_function.news_brief_engine.function_name
+      AUDIO_ENGINE_FUNCTION          = aws_lambda_function.news_audio_engine.function_name
+      ORCHESTRATOR_FUNCTION          = aws_lambda_function.news_orchestrator.function_name
     }
   }
 
@@ -582,7 +588,7 @@ resource "aws_lambda_function" "news_internal_api" {
 resource "aws_cloudwatch_event_rule" "daily_news_pipeline" {
   name                = "${local.project_name}-daily-news-pipeline-${var.environment}"
   description         = "Trigger daily news pipeline at 6 AM UTC"
-  schedule_expression = "cron(0 6 * * ? *)"  # 6 AM UTC daily
+  schedule_expression = "cron(0 6 * * ? *)" # 6 AM UTC daily
   state               = "ENABLED"
 
   tags = local.common_tags

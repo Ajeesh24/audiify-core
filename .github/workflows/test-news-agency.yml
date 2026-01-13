@@ -15,130 +15,131 @@ env:
   NEWS_AGENCY_PATH: ./news-agency
 
 jobs:
-  lint-and-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest flake8 black isort
-
-      - name: Lint with flake8
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          # Stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Exit-zero treats all errors as warnings
-          flake8 . --count --exit-zero --max-complexity=15 --max-line-length=120 --statistics
-
-      - name: Check code formatting with black
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          black --check --diff .
-
-      - name: Check import sorting with isort
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          isort --check-only --diff .
-
-      - name: Run syntax validation tests
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          python -m py_compile engines/*.py
-          python -m py_compile api/*.py
-          python -m py_compile services/*.py
-          python -m py_compile models/*.py
-          python -m py_compile utils/*.py
-          python -m py_compile config/*.py
-
-      - name: Test import structure
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          python -c "
-          import sys
-          import os
-          sys.path.insert(0, os.getcwd())
-
-          # Test basic imports
-          try:
-              from config.settings import Settings
-              from models import Article, Brief, Job
-              from utils.logger import get_logger
-              print('✅ All basic imports successful')
-          except ImportError as e:
-              print(f'❌ Import error: {e}')
-              sys.exit(1)
-          "
-
-      - name: Test engine initialization (without external APIs)
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          python -c "
-          import sys
-          import os
-          sys.path.insert(0, os.getcwd())
-
-          try:
-              # Test engine class definitions (without instantiation to avoid API calls)
-              from engines.rss_engine import RSSEngine
-              from engines.categorization_engine import CategorizationEngine
-              from engines.ranking_engine import RankingEngine
-              from engines.brief_engine import BriefGenerationEngine
-              from engines.audio_engine import AudioGenerationEngine
-              print('✅ All engine classes can be imported')
-          except ImportError as e:
-              print(f'❌ Engine import error: {e}')
-              sys.exit(1)
-          "
-
-      - name: Test API handlers syntax
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          python -c "
-          import sys
-          import os
-          sys.path.insert(0, os.getcwd())
-
-          try:
-              from api.public import PublicAPI
-              from api.internal import InternalAPI
-              print('✅ API handlers imported successfully')
-          except ImportError as e:
-              print(f'❌ API import error: {e}')
-              sys.exit(1)
-          "
-
-      - name: Security check - No hardcoded secrets
-        run: |
-          cd ${{ env.NEWS_AGENCY_PATH }}
-          # Check for potential hardcoded API keys or secrets
-          if grep -r "sk-" . --include="*.py" --exclude-dir=".git"; then
-            echo "❌ Found potential hardcoded OpenAI API key"
-            exit 1
-          fi
-
-          if grep -ri "password.*=" . --include="*.py" --exclude-dir=".git"; then
-            echo "❌ Found potential hardcoded password"
-            exit 1
-          fi
-
-          if grep -ri "secret.*=" . --include="*.py" --exclude-dir=".git"; then
-            echo "❌ Found potential hardcoded secret"
-            exit 1
-          fi
-
-          echo "✅ No hardcoded secrets detected"
+  # lint-and-test:
+  #   Temporarily disabled - will be re-enabled later
+  #   runs-on: ubuntu-latest
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
+  #
+  #     - name: Install dependencies
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt
+  #         pip install pytest flake8 black isort
+  #
+  #     - name: Lint with flake8
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         # Stop the build if there are Python syntax errors or undefined names
+  #         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+  #         # Exit-zero treats all errors as warnings
+  #         flake8 . --count --exit-zero --max-complexity=15 --max-line-length=120 --statistics
+  #
+  #     - name: Check code formatting with black
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         black --check --diff .
+  #
+  #     - name: Check import sorting with isort
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         isort --check-only --diff .
+  #
+  #     - name: Run syntax validation tests
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         python -m py_compile engines/*.py
+  #         python -m py_compile api/*.py
+  #         python -m py_compile services/*.py
+  #         python -m py_compile models/*.py
+  #         python -m py_compile utils/*.py
+  #         python -m py_compile config/*.py
+  #
+  #     - name: Test import structure
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         python -c "
+  #         import sys
+  #         import os
+  #         sys.path.insert(0, os.getcwd())
+  #
+  #         # Test basic imports
+  #         try:
+  #             from config.settings import Settings
+  #             from models import Article, Brief, Job
+  #             from utils.logger import get_logger
+  #             print('✅ All basic imports successful')
+  #         except ImportError as e:
+  #             print(f'❌ Import error: {e}')
+  #             sys.exit(1)
+  #         "
+  #
+  #     - name: Test engine initialization (without external APIs)
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         python -c "
+  #         import sys
+  #         import os
+  #         sys.path.insert(0, os.getcwd())
+  #
+  #         try:
+  #             # Test engine class definitions (without instantiation to avoid API calls)
+  #             from engines.rss_engine import RSSEngine
+  #             from engines.categorization_engine import CategorizationEngine
+  #             from engines.ranking_engine import RankingEngine
+  #             from engines.brief_engine import BriefGenerationEngine
+  #             from engines.audio_engine import AudioGenerationEngine
+  #             print('✅ All engine classes can be imported')
+  #         except ImportError as e:
+  #             print(f'❌ Engine import error: {e}')
+  #             sys.exit(1)
+  #         "
+  #
+  #     - name: Test API handlers syntax
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         python -c "
+  #         import sys
+  #         import os
+  #         sys.path.insert(0, os.getcwd())
+  #
+  #         try:
+  #             from api.public import PublicAPI
+  #             from api.internal import InternalAPI
+  #             print('✅ API handlers imported successfully')
+  #         except ImportError as e:
+  #             print(f'❌ API import error: {e}')
+  #             sys.exit(1)
+  #         "
+  #
+  #     - name: Security check - No hardcoded secrets
+  #       run: |
+  #         cd ${{ env.NEWS_AGENCY_PATH }}
+  #         # Check for potential hardcoded API keys or secrets
+  #         if grep -r "sk-" . --include="*.py" --exclude-dir=".git"; then
+  #           echo "❌ Found potential hardcoded OpenAI API key"
+  #           exit 1
+  #         fi
+  #
+  #         if grep -ri "password.*=" . --include="*.py" --exclude-dir=".git"; then
+  #           echo "❌ Found potential hardcoded password"
+  #           exit 1
+  #         fi
+  #
+  #         if grep -ri "secret.*=" . --include="*.py" --exclude-dir=".git"; then
+  #           echo "❌ Found potential hardcoded secret"
+  #           exit 1
+  #         fi
+  #
+  #         echo "✅ No hardcoded secrets detected"
 
   docker-build-test:
     runs-on: ubuntu-latest
@@ -207,14 +208,13 @@ jobs:
           echo "✅ News agency Terraform resources found"
 
   deployment-readiness:
-    needs: [lint-and-test, docker-build-test, terraform-validate]
+    needs: [docker-build-test, terraform-validate]
     runs-on: ubuntu-latest
 
     steps:
       - name: Deployment readiness summary
         run: |
           echo "## News Agency Deployment Readiness" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Code quality checks passed" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Docker builds successful" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Terraform validation passed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

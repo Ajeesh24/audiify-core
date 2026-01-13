@@ -135,9 +135,9 @@ resource "aws_s3_bucket_cors_configuration" "audio_storage" {
     allowed_headers = ["*"]
     allowed_methods = ["GET", "HEAD"]
     allowed_origins = [
-      "http://localhost:5173",                                    # Local development
-      "https://${aws_cloudfront_distribution.frontend.domain_name}",  # CloudFront distribution
-      var.domain_name != "" ? "https://${var.domain_name}" : ""   # Custom domain if configured
+      "http://localhost:5173",                                       # Local development
+      "https://${aws_cloudfront_distribution.frontend.domain_name}", # CloudFront distribution
+      var.domain_name != "" ? "https://${var.domain_name}" : ""      # Custom domain if configured
     ]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
@@ -193,8 +193,8 @@ resource "aws_lambda_function" "backend" {
       COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
       COGNITO_REGION           = data.aws_region.current.name
       # Logging configuration
-      LOG_LEVEL                = "INFO"
-      PYTHONUNBUFFERED         = "1"
+      LOG_LEVEL        = "INFO"
+      PYTHONUNBUFFERED = "1"
     }
   }
 
@@ -428,12 +428,12 @@ resource "aws_ssm_parameter" "openai_api_key" {
 
 # SQS Queue for background job processing
 resource "aws_sqs_queue" "job_queue" {
-  name                      = "${local.project_name}-job-queue-${var.environment}"
-  delay_seconds            = 0
-  max_message_size         = 262144
-  message_retention_seconds = 1209600  # 14 days
-  receive_wait_time_seconds = 0
-  visibility_timeout_seconds = 900     # 15 minutes (Lambda max timeout)
+  name                       = "${local.project_name}-job-queue-${var.environment}"
+  delay_seconds              = 0
+  max_message_size           = 262144
+  message_retention_seconds  = 1209600 # 14 days
+  receive_wait_time_seconds  = 0
+  visibility_timeout_seconds = 900 # 15 minutes (Lambda max timeout)
 
   tags = local.common_tags
 }
@@ -444,7 +444,7 @@ resource "aws_cognito_user_pool" "main" {
 
   # User attributes - users sign up directly with email as username
   auto_verified_attributes = ["email"]
-  username_attributes      = ["email"]  # Users can sign in with email
+  username_attributes      = ["email"] # Users can sign in with email
 
   # Password policy
   password_policy {
@@ -549,9 +549,9 @@ resource "aws_cognito_user_pool_client" "main" {
   ]
 
   # Token validity (in minutes by default)
-  access_token_validity  = 60   # 1 hour
-  refresh_token_validity = 30   # 30 days
-  id_token_validity      = 60   # 1 hour
+  access_token_validity  = 60 # 1 hour
+  refresh_token_validity = 30 # 30 days
+  id_token_validity      = 60 # 1 hour
 
   # Specify the units explicitly
   token_validity_units {
@@ -569,7 +569,7 @@ resource "aws_cognito_user_pool_client" "main" {
 
 # Cognito Identity Pool
 resource "aws_cognito_identity_pool" "main" {
-  identity_pool_name      = "${local.project_name}_identity_pool_${var.environment}"
+  identity_pool_name               = "${local.project_name}_identity_pool_${var.environment}"
   allow_unauthenticated_identities = false
 
   cognito_identity_providers {
@@ -641,9 +641,9 @@ resource "aws_cognito_identity_pool_roles_attachment" "main" {
 
 # DynamoDB table for job status storage (updated with user_id)
 resource "aws_dynamodb_table" "job_status" {
-  name           = "${local.project_name}-jobs-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "job_id"
+  name         = "${local.project_name}-jobs-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "job_id"
 
   attribute {
     name = "job_id"
@@ -667,18 +667,18 @@ resource "aws_dynamodb_table" "job_status" {
 
   # Global secondary index for querying by status
   global_secondary_index {
-    name               = "status-created-index"
-    hash_key           = "status"
-    range_key          = "created_at"
-    projection_type    = "ALL"
+    name            = "status-created-index"
+    hash_key        = "status"
+    range_key       = "created_at"
+    projection_type = "ALL"
   }
 
   # Global secondary index for user-specific queries
   global_secondary_index {
-    name               = "user-created-index"
-    hash_key           = "user_id"
-    range_key          = "created_at"
-    projection_type    = "ALL"
+    name            = "user-created-index"
+    hash_key        = "user_id"
+    range_key       = "created_at"
+    projection_type = "ALL"
   }
 
   # TTL for automatic cleanup of old jobs

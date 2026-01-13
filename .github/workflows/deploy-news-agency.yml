@@ -1,10 +1,12 @@
 name: Deploy News Agency
 
+# Required GitHub Variables (not secrets):
+# - AWS_GITHUB_TRUST_ROLE: AWS IAM role for GitHub Actions authentication
+# - AWS_DEPLOYMENT_ROLE: AWS IAM role for deployment permissions
+#
 # Required GitHub Secrets:
 # - OPENAI_API_KEY: OpenAI API key for LLM and TTS services
 # - ELEVENLABS_API_KEY: ElevenLabs API key for audio generation (optional)
-# - AWS_GITHUB_TRUST_ROLE: AWS IAM role for GitHub Actions authentication
-# - AWS_DEPLOYMENT_ROLE: AWS IAM role for deployment permissions
 
 on:
   push:
@@ -130,10 +132,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -174,10 +185,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -212,10 +232,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -250,10 +279,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -288,10 +326,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -326,10 +373,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -364,10 +420,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -416,10 +481,19 @@ jobs:
 
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_TRUST_ROLE }}
+          role-to-assume: ${{ vars.AWS_GITHUB_TRUST_ROLE }}
+          role-session-name: "GitHubActions"
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOYMENT_ROLE }}
+          role-session-name: "GitHubActions"
+          aws-region: ${{ env.AWS_REGION }}
+          role-chaining: true
 
       - name: Test Internal API Health Check
         run: |
