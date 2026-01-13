@@ -379,7 +379,8 @@ class RSSEngine:
         for article in articles:
             try:
                 # Check for duplicates before storing
-                existing = self.article_model.get_article(article['url'])
+                processing_date = datetime.utcnow().strftime('%Y-%m-%d')
+                existing = self.article_model.get_article_by_url(article['url'], processing_date)
                 if existing:
                     logger.debug(f"Article already exists: {article['url']}")
                     continue

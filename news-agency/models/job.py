@@ -290,7 +290,9 @@ class Job:
             for key, value in metrics.items():
                 if key not in ['status', 'completed_at', 'duration']:
                     update_expression += f", engines.{engine_name}.{key} = :{key}"
-                    expression_values[f":{key}"] = value
+                    # Clean the value for DynamoDB
+                    cleaned_value = Decimal(str(value)) if isinstance(value, float) else value
+                    expression_values[f":{key}"] = cleaned_value
 
             job_key = self._get_job_key(date)
             self.table.update_item(
