@@ -28,21 +28,34 @@ resource "aws_dynamodb_table" "articles" {
   }
 
   attribute {
-    name = "status"
+    name = "processing_date"
     type = "S"
   }
 
+  attribute {
+    name = "url"
+    type = "S"
+  }
+
+  # GSI for querying by date
   global_secondary_index {
-    name            = "DateCategoryIndex"
-    hash_key        = "date"
-    range_key       = "category"
+    name            = "date-index"
+    hash_key        = "processing_date"
     projection_type = "ALL"
   }
 
+  # GSI for querying by category and date
   global_secondary_index {
-    name            = "StatusIndex"
-    hash_key        = "status"
-    range_key       = "date"
+    name            = "category-date-index"
+    hash_key        = "category"
+    range_key       = "processing_date"
+    projection_type = "ALL"
+  }
+
+  # GSI for querying by URL (for duplicate detection)
+  global_secondary_index {
+    name            = "url-index"
+    hash_key        = "url"
     projection_type = "ALL"
   }
 
@@ -53,8 +66,12 @@ resource "aws_dynamodb_table" "articles" {
 resource "aws_dynamodb_table" "briefs" {
   name         = "${local.project_name}-briefs-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "brief_id"
-  range_key    = "date"
+  hash_key     = "composite_key"  # category#date format
+
+  attribute {
+    name = "composite_key"
+    type = "S"
+  }
 
   attribute {
     name = "brief_id"
@@ -71,21 +88,24 @@ resource "aws_dynamodb_table" "briefs" {
     type = "S"
   }
 
-  attribute {
-    name = "status"
-    type = "S"
-  }
-
+  # GSI for querying by brief_id
   global_secondary_index {
-    name            = "DateCategoryIndex"
-    hash_key        = "date"
-    range_key       = "category"
+    name            = "brief_id-index"
+    hash_key        = "brief_id"
     projection_type = "ALL"
   }
 
+  # GSI for querying by date
   global_secondary_index {
-    name            = "StatusIndex"
-    hash_key        = "status"
+    name            = "date-index"
+    hash_key        = "date"
+    projection_type = "ALL"
+  }
+
+  # GSI for querying by category and date
+  global_secondary_index {
+    name            = "category-date-index"
+    hash_key        = "category"
     range_key       = "date"
     projection_type = "ALL"
   }

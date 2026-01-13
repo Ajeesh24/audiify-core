@@ -21,7 +21,7 @@ class Brief:
         self.dynamodb = boto3.resource('dynamodb')
         # Use environment variable for table name
         import os
-        table_name = os.getenv('BRIEFS_TABLE', 'audifyy-briefs-dev')
+        table_name = os.getenv('BRIEFS_TABLE', 'audifyy-news-briefs-dev')
         self.table = self.dynamodb.Table(table_name)
 
     def _clean_for_dynamodb(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -33,7 +33,8 @@ class Brief:
             elif isinstance(value, dict):
                 cleaned[key] = self._clean_for_dynamodb(value)
             elif isinstance(value, list):
-                cleaned[key] = [Decimal(str(item)) if isinstance(item, float) else item for item in value]
+                cleaned[key] = [self._clean_for_dynamodb(item) if isinstance(item, dict) else
+                              Decimal(str(item)) if isinstance(item, float) else item for item in value]
             else:
                 cleaned[key] = value
         return cleaned

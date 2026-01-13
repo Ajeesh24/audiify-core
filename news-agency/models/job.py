@@ -78,7 +78,8 @@ class Job:
             elif isinstance(value, dict):
                 cleaned[key] = self._clean_for_dynamodb(value)
             elif isinstance(value, list):
-                cleaned[key] = [Decimal(str(item)) if isinstance(item, float) else item for item in value]
+                cleaned[key] = [self._clean_for_dynamodb(item) if isinstance(item, dict) else
+                              Decimal(str(item)) if isinstance(item, float) else item for item in value]
             else:
                 cleaned[key] = value
         return cleaned
@@ -272,7 +273,7 @@ class Job:
             update_expression = f"""
                 SET engines.{engine_name}.#status = :status,
                     engines.{engine_name}.completed_at = :completed_at,
-                    engines.{engine_name}.duration = :duration,
+                    engines.{engine_name}.#duration = :duration,
                     updated_at = :updated_at
             """
 
@@ -283,7 +284,7 @@ class Job:
                 ':updated_at': now
             }
 
-            expression_names = {'#status': 'status'}
+            expression_names = {'#status': 'status', '#duration': 'duration'}
 
             # Add metrics to update expression
             for key, value in metrics.items():
@@ -323,7 +324,7 @@ class Job:
                 UpdateExpression=f"""
                     SET engines.{engine_name}.#status = :status,
                         engines.{engine_name}.completed_at = :completed_at,
-                        engines.{engine_name}.duration = :duration,
+                        engines.{engine_name}.#duration = :duration,
                         engines.{engine_name}.error_message = :error_message,
                         updated_at = :updated_at
                 """,
@@ -334,7 +335,7 @@ class Job:
                     ':error_message': error_message,
                     ':updated_at': now
                 },
-                ExpressionAttributeNames={'#status': 'status'}
+                ExpressionAttributeNames={'#status': 'status', '#duration': 'duration'}
             )
 
             # Add error to summary
