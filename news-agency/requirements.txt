@@ -1,6 +1,5 @@
 # Core Dependencies
 boto3>=1.28.0
-openai>=1.3.0
 requests>=2.31.0
 feedparser>=6.0.10
 
