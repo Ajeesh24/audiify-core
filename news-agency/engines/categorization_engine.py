@@ -126,7 +126,7 @@ class CategorizationEngine:
                     results['categories'][article['category']] += 1
 
             # Save categorized articles
-            self._save_categorized_articles(processed_articles)
+            self._save_categorized_articles(processed_articles, date)
             results['articles_categorized'] = len(processed_articles)
 
             results['processing_time'] = time.time() - start_time
@@ -366,17 +366,21 @@ class CategorizationEngine:
         # Clamp to valid range
         return max(1.0, min(10.0, base_score))
 
-    def _save_categorized_articles(self, articles: List[Dict]):
+    def _save_categorized_articles(self, articles: List[Dict], date: str):
         """
         Save categorized articles to database
 
         Args:
             articles: List of categorized articles
+            date: Processing date
         """
         for article in articles:
             try:
+                # Use article_id from the article data - should be the URL-based ID
+                article_id = article.get('article_id', article['url'])
                 self.article_model.update_article(
-                    article['url'],
+                    article_id,
+                    date,
                     category=article['category'],
                     relevance_score=article['relevance_score'],
                     status='categorized'

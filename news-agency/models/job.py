@@ -289,10 +289,13 @@ class Job:
             # Add metrics to update expression
             for key, value in metrics.items():
                 if key not in ['status', 'completed_at', 'duration']:
-                    update_expression += f", engines.{engine_name}.{key} = :{key}"
+                    # Use expression attribute names for all metric keys to avoid reserved keyword issues
+                    attr_name = f"#metric_{key}"
+                    update_expression += f", engines.{engine_name}.{attr_name} = :{key}"
                     # Clean the value for DynamoDB
                     cleaned_value = Decimal(str(value)) if isinstance(value, float) else value
                     expression_values[f":{key}"] = cleaned_value
+                    expression_names[attr_name] = key
 
             job_key = self._get_job_key(date)
             self.table.update_item(
@@ -394,7 +397,7 @@ class Job:
             UpdateExpression="""
                 SET #status = :status,
                     completed_at = :completed_at,
-                    metrics.pipeline_duration = :pipeline_duration,
+                    #metrics.pipeline_duration = :pipeline_duration,
                     updated_at = :updated_at
             """,
             ExpressionAttributeValues={
@@ -403,7 +406,7 @@ class Job:
                 ':pipeline_duration': pipeline_duration,
                 ':updated_at': now
             },
-            ExpressionAttributeNames={'#status': 'status'}
+            ExpressionAttributeNames={'#status': 'status', '#metrics': 'metrics'}
         )
 
     def _add_error_to_summary(self, date: str, engine_name: str, error_message: str):
