@@ -96,6 +96,22 @@ class RankingEngine:
             self.job_model.fail_engine(date, 'ranking_engine', str(e))
             raise
 
+    def _convert_decimals_to_floats(self, article: Dict) -> Dict:
+        """
+        Convert any Decimal values in article to floats for arithmetic operations
+
+        Args:
+            article: Article dictionary with potential Decimal values
+
+        Returns:
+            Article dictionary with Decimals converted to floats
+        """
+        converted_article = article.copy()
+        for key, value in converted_article.items():
+            if isinstance(value, Decimal):
+                converted_article[key] = float(value)
+        return converted_article
+
     def _rank_category_articles(self, category: str, date: str) -> Dict[str, any]:
         """
         Rank articles for a specific category
@@ -128,6 +144,8 @@ class RankingEngine:
         # Calculate enhanced ranking scores
         scored_articles = []
         for article in categorized_articles:
+            # Convert any Decimal values to floats before calculations
+            article = self._convert_decimals_to_floats(article)
             enhanced_score = self._calculate_enhanced_ranking_score(article, categorized_articles)
             scored_articles.append({
                 'article': article,
