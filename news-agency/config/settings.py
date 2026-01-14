@@ -77,9 +77,9 @@ COST_OPTIMIZATION = {
 # Brief Generation Settings
 BRIEF_GENERATION = {
     'target_word_count': {
-        'general-tech': 1200,      # ~7-8 minutes
-        'ai-ml': 1200,            # ~7-8 minutes
-        'devops-platform': 1200   # ~7-8 minutes
+        'general-tech': 1500,      # ~10 minutes (increased for richer content)
+        'ai-ml': 1500,            # ~10 minutes (increased for richer content)
+        'devops-platform': 1500   # ~10 minutes (increased for richer content)
     },
     'max_articles_per_brief': 8,   # Maximum articles to include in one brief
     'min_articles_per_brief': 3,   # Minimum articles needed to generate brief

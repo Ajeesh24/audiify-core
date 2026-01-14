@@ -283,7 +283,7 @@ class BriefGenerationEngine:
         # Format articles for prompt
         articles_text = "\n".join([
             f"**{i+1}. {article['title']}** (Source: {article['source']})\n"
-            f"Summary: {article.get('summary', 'No summary available')}\n"
+            f"{'Full Content' if article.get('content_extracted') else 'Summary'}: {article.get('full_content', article.get('summary', 'No content available'))}\n"
             f"Relevance Score: {article.get('final_ranking_score', article.get('relevance_score', 'N/A'))}/10\n"
             for i, article in enumerate(articles)
         ])
@@ -299,19 +299,24 @@ class BriefGenerationEngine:
 {articles_text}
 
 **Requirements**:
-- Write exactly {target_words} words (±50 words acceptable)
+- Write exactly {target_words} words (±50 words acceptable) - this is critical for proper audio length
+- Use the full article content provided (not just headlines or summaries)
 - Conversational tone suitable for audio narration
 - Include an engaging introduction that sets the context
-- Cover the most important stories with smooth transitions
-- Provide context and explain technical terms briefly
-- Include a concluding summary of key takeaways
+- Cover each story in depth with technical details, implications, and context
+- Provide comprehensive analysis, not just surface-level summaries
+- Explain technical terms and provide background information
+- Include a concluding summary of key takeaways and future outlook
 - Attribution: Mention key sources naturally in the narrative
 - No markdown formatting - write for spoken delivery
+- Aim for podcast-quality depth and analysis
 
 **Brief Structure**:
-1. Hook/Introduction (10% of content)
-2. Main stories with context (75% of content)
-3. Conclusion and outlook (15% of content)
+1. Hook/Introduction (150-200 words) - Set context and preview key stories
+2. Main stories with deep analysis (1100-1200 words) - Cover each story thoroughly with technical details
+3. Conclusion and outlook (200-250 words) - Synthesize trends and implications
+
+IMPORTANT: Each main story should receive 150-200 words of coverage. Use the full article content to provide comprehensive analysis, technical details, and industry context. This is a podcast-quality brief, not a news summary.
 
 Begin with something like "Good morning! Here are today's top {info['name'].lower()} stories..." and write as if speaking directly to the listener."""
 
