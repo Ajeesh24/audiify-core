@@ -43,6 +43,18 @@ RSS_FEEDS = {
             "url": "https://venturebeat.com/feed/",
             "priority": 3,
             "description": "Enterprise technology and startups"
+        },
+        {
+            "name": "TechCrunch Startups",
+            "url": "https://techcrunch.com/category/startups/feed/",
+            "priority": 2,
+            "description": "Startup news and funding"
+        },
+        {
+            "name": "ZDNet",
+            "url": "https://www.zdnet.com/news/rss.xml",
+            "priority": 2,
+            "description": "Business technology news"
         }
     ],
 
@@ -55,7 +67,7 @@ RSS_FEEDS = {
         },
         {
             "name": "VentureBeat AI",
-            "url": "https://venturebeat.com/ai/feed/",
+            "url": "https://venturebeat.com/feed/",
             "priority": 1,
             "description": "AI business and enterprise applications"
         },
@@ -67,21 +79,27 @@ RSS_FEEDS = {
         },
         {
             "name": "OpenAI Blog",
-            "url": "https://openai.com/blog/rss.xml",
+            "url": "https://openai.com/index/rss.xml",
             "priority": 1,
             "description": "OpenAI research updates and releases"
         },
         {
             "name": "Google AI Blog",
-            "url": "https://ai.googleblog.com/feeds/posts/default",
+            "url": "https://blog.research.google/feeds/posts/default",
             "priority": 1,
             "description": "Google's AI research and developments"
         },
         {
-            "name": "Anthropic News",
-            "url": "https://www.anthropic.com/news/rss",
+            "name": "Hugging Face Blog",
+            "url": "https://huggingface.co/blog/feed.xml",
             "priority": 2,
-            "description": "Anthropic research and safety updates"
+            "description": "ML community and model updates"
+        },
+        {
+            "name": "The AI Index",
+            "url": "https://aiindex.stanford.edu/feed/",
+            "priority": 2,
+            "description": "Stanford AI research and trends"
         }
     ],
 
@@ -94,7 +112,7 @@ RSS_FEEDS = {
         },
         {
             "name": "Google Cloud Blog",
-            "url": "https://cloud.google.com/blog/rss/",
+            "url": "https://cloud.google.com/blog/rss",
             "priority": 1,
             "description": "Google Cloud platform updates"
         },
