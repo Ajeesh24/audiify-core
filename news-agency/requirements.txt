@@ -3,15 +3,12 @@ boto3>=1.34.0
 requests==2.31.*
 feedparser==6.0.10
 
-# LangChain for LLM operations (matching backend)
-langchain==1.2.0
-langchain-openai==0.2.0
-openai==1.10.0
-pydantic==2.12.0
+# LangChain for LLM operations (exact same as backend)
+langchain>=1.2.0
+langchain-openai>=0.2.0
+openai>=1.10.0,<2.0
+pydantic>=2.12.0
 httpx==0.25.*
-
-# Explicitly pin tiktoken to avoid Rust compilation
-tiktoken==0.8.0
 
 # Data Processing
 python-dateutil>=2.8.2
