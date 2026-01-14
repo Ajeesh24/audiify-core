@@ -171,8 +171,10 @@ class RankingEngine:
             final_score = scored_article['final_score']
 
             # Update article in database
+            article_id = article.get('article_id', article['url'])
             self.article_model.update_article(
-                article['url'],
+                article_id,
+                date,
                 status='ranked',
                 ranking_position=ranking_position,
                 final_ranking_score=final_score,
