@@ -200,7 +200,7 @@ class BriefGenerationEngine:
             estimated_duration = int((word_count / 150) * 60)  # seconds
 
             # Store brief in database
-            article_urls = [article['url'] for article in top_articles]
+            article_urls = [article['url'] for article in enriched_articles]
             brief_data = self.brief_model.create_brief(
                 category=category,
                 date=date,
@@ -209,6 +209,16 @@ class BriefGenerationEngine:
                 word_count=word_count,
                 estimated_duration=estimated_duration
             )
+
+            if not brief_data or 'brief_id' not in brief_data:
+                logger.error(f"Failed to create/update brief for {category}")
+                return {
+                    'success': False,
+                    'error': 'Failed to save brief to database',
+                    'word_count': word_count,
+                    'token_usage': tokens_used,
+                    'cost_usd': cost
+                }
 
             # Update generation stats
             self.brief_model.update_generation_stats(category, date, {

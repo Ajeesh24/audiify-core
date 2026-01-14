@@ -99,7 +99,7 @@ class Brief:
         except self.dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
             # Brief already exists for this category and date, update it
             return self.update_brief(category, date, **{k: v for k, v in brief_data.items()
-                                                      if k not in ['brief_id', 'created_at', 'composite_key', 'category', 'date']})
+                                                      if k not in ['brief_id', 'created_at', 'composite_key', 'category', 'date', 'updated_at']})
 
     def get_brief(self, category: str, date: str) -> Optional[Dict[str, Any]]:
         """Get brief by category and date"""
@@ -161,7 +161,7 @@ class Brief:
         expression_names = {}
 
         for key, value in kwargs.items():
-            if key not in ['composite_key', 'brief_id', 'created_at', 'category', 'date']:
+            if key not in ['composite_key', 'brief_id', 'created_at', 'category', 'date', 'updated_at']:
                 placeholder = f":{key}"
                 if key in ['status']:  # Reserved keywords
                     name_placeholder = f"#{key}"
