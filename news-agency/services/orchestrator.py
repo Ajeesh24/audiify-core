@@ -6,6 +6,7 @@ Handles error recovery and pipeline monitoring
 """
 
 import time
+import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from enum import Enum
@@ -63,7 +64,7 @@ class PipelineOrchestrator:
             PipelineStage.AUDIO_GENERATION
         ]
 
-    def run_daily_pipeline(self, date: str = None, stages: List[str] = None) -> Dict[str, Any]:
+    async def run_daily_pipeline(self, date: str = None, stages: List[str] = None) -> Dict[str, Any]:
         """
         Execute the complete daily pipeline
 
@@ -115,7 +116,7 @@ class PipelineOrchestrator:
                     logger.info(f"Skipping {stage.value} due to previous failures or budget constraints")
                     continue
 
-                stage_result = self._execute_stage(stage, date)
+                stage_result = await self._execute_stage(stage, date)
                 results['stages'][stage.value] = stage_result
 
                 if stage_result['success']:
@@ -171,7 +172,7 @@ class PipelineOrchestrator:
             results['duration'] = time.time() - pipeline_start_time
             return results
 
-    def _execute_stage(self, stage: PipelineStage, date: str) -> Dict[str, Any]:
+    async def _execute_stage(self, stage: PipelineStage, date: str) -> Dict[str, Any]:
         """
         Execute a single pipeline stage
 
@@ -196,7 +197,7 @@ class PipelineOrchestrator:
             elif stage == PipelineStage.RANKING:
                 result = engine.rank_daily_articles(date)
             elif stage == PipelineStage.BRIEF_GENERATION:
-                result = engine.generate_daily_briefs(date)
+                result = await engine.generate_daily_briefs(date)
             elif stage == PipelineStage.AUDIO_GENERATION:
                 result = engine.generate_daily_audio(date)
             else:
@@ -345,7 +346,7 @@ class PipelineOrchestrator:
 
         return status_summary
 
-    def retry_failed_stages(self, date: str, stages: List[str] = None) -> Dict[str, Any]:
+    async def retry_failed_stages(self, date: str, stages: List[str] = None) -> Dict[str, Any]:
         """
         Retry failed stages of the pipeline
 
@@ -376,10 +377,10 @@ class PipelineOrchestrator:
             }
 
         # Run pipeline with only the specified stages
-        return self.run_daily_pipeline(date, stages)
+        return await self.run_daily_pipeline(date, stages)
 
 
-def lambda_handler(event, context):
+async def lambda_handler(event, context):
     """
     AWS Lambda handler for pipeline orchestration
 
@@ -398,7 +399,7 @@ def lambda_handler(event, context):
         orchestrator = PipelineOrchestrator()
 
         if action == 'run_pipeline':
-            results = orchestrator.run_daily_pipeline(date, stages)
+            results = await orchestrator.run_daily_pipeline(date, stages)
             return {
                 'statusCode': 200,
                 'body': results
@@ -431,6 +432,9 @@ def lambda_handler(event, context):
 
 if __name__ == '__main__':
     # For local testing
-    orchestrator = PipelineOrchestrator()
-    results = orchestrator.run_daily_pipeline()
-    print(f"Pipeline completed: {results}")
+    async def test():
+        orchestrator = PipelineOrchestrator()
+        results = await orchestrator.run_daily_pipeline()
+        print(f"Pipeline completed: {results}")
+
+    asyncio.run(test())

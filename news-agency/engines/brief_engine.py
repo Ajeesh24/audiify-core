@@ -6,6 +6,7 @@ Optimized for cost efficiency with detailed token management
 """
 
 import time
+import asyncio
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
@@ -17,6 +18,7 @@ from config import (
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
 from utils.metrics import cost_tracker, time_operation, estimate_tokens, calculate_llm_cost
 from utils.llm_service import llm_service
+from utils.extractor import ArticleExtractor
 
 logger = get_logger(__name__)
 
@@ -35,10 +37,11 @@ class BriefGenerationEngine:
     def __init__(self):
         self.article_model = Article()
         self.brief_model = Brief()
+        self.extractor = ArticleExtractor()
         self.job_model = Job()
         # LLM service is already initialized as a global instance
 
-    def generate_daily_briefs(self, date: str = None) -> Dict[str, any]:
+    async def generate_daily_briefs(self, date: str = None) -> Dict[str, any]:
         """
         Main entry point for daily brief generation
 
@@ -85,7 +88,7 @@ class BriefGenerationEngine:
                 logger.info(f"Generating brief for category: {category}")
 
                 try:
-                    category_results = self._generate_category_brief(category, date)
+                    category_results = await self._generate_category_brief(category, date)
                     results['categories'][category] = category_results
 
                     if category_results['success']:
@@ -127,7 +130,7 @@ class BriefGenerationEngine:
             self.job_model.fail_engine(date, 'brief_engine', str(e))
             raise
 
-    def _generate_category_brief(self, category: str, date: str) -> Dict[str, any]:
+    async def _generate_category_brief(self, category: str, date: str) -> Dict[str, any]:
         """
         Generate a brief for a specific category
 
@@ -151,8 +154,12 @@ class BriefGenerationEngine:
                 'cost_usd': 0.0
             }
 
+        # Extract full article content for richer briefs
+        logger.info(f"Extracting full content from {len(top_articles)} articles for {category}")
+        enriched_articles = await self._extract_article_contents(top_articles)
+
         # Create brief generation prompt
-        prompt = self._create_brief_prompt(category, top_articles, date)
+        prompt = self._create_brief_prompt(category, enriched_articles, date)
 
         # Estimate cost and check budget
         estimated_tokens = estimate_tokens(prompt) + BRIEF_GENERATION['target_word_count'][category] // 3
@@ -171,7 +178,7 @@ class BriefGenerationEngine:
             # Generate brief using LangChain LLM service
             brief_result = llm_service.generate_brief(
                 category=category,
-                articles=top_articles,
+                articles=enriched_articles,
                 date=date,
                 prompt_template=prompt,
                 target_word_count=BRIEF_GENERATION['target_word_count'][category]
@@ -371,7 +378,7 @@ Key principles:
             'error_message': engine_data.get('error_message')
         }
 
-    def regenerate_brief(self, category: str, date: str) -> Dict[str, any]:
+    async def regenerate_brief(self, category: str, date: str) -> Dict[str, any]:
         """
         Regenerate a brief for a specific category (useful for testing or manual triggers)
 
@@ -389,7 +396,7 @@ Key principles:
             return {'error': 'Daily budget exceeded'}
 
         try:
-            result = self._generate_category_brief(category, date)
+            result = await self._generate_category_brief(category, date)
 
             if result['success']:
                 logger.info(f"Successfully regenerated brief for {category}")
@@ -403,7 +410,7 @@ Key principles:
             return {'error': str(e)}
 
 
-def lambda_handler(event, context):
+async def lambda_handler(event, context):
     """
     AWS Lambda handler for brief generation
 
@@ -421,7 +428,7 @@ def lambda_handler(event, context):
 
         if category:
             # Generate brief for specific category only
-            result = engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
+            result = await engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
             return {
                 'statusCode': 200,
                 'body': {
@@ -431,7 +438,7 @@ def lambda_handler(event, context):
             }
         else:
             # Generate all daily briefs
-            results = engine.generate_daily_briefs(date)
+            results = await engine.generate_daily_briefs(date)
             return {
                 'statusCode': 200,
                 'body': results
@@ -444,9 +451,78 @@ def lambda_handler(event, context):
             'body': {'error': str(e)}
         }
 
+    async def _extract_article_contents(self, articles: List[Dict]) -> List[Dict]:
+        """
+        Extract full article content for richer brief generation.
+
+        Args:
+            articles: List of article metadata from database
+
+        Returns:
+            List of articles with full extracted content
+        """
+        enriched_articles = []
+
+        for article in articles:
+            try:
+                # Extract full article content
+                url = article.get('url')
+                if not url:
+                    # Keep original if no URL
+                    enriched_articles.append(article)
+                    continue
+
+                logger.info(f"Extracting content from: {url}")
+
+                # Use the article extractor
+                title, full_content, is_paywalled = await self.extractor.extract_article(url)
+
+                if is_paywalled:
+                    logger.warning(f"Article is paywalled, using original summary: {url}")
+                    enriched_articles.append(article)
+                    continue
+
+                if full_content and len(full_content.strip()) > 200:
+                    # Create enriched article with full content
+                    enriched_article = article.copy()
+
+                    # Clean the content for better TTS
+                    cleaned_content = self.extractor.clean_content(full_content)
+
+                    # Truncate if too long to manage token costs
+                    max_content_length = BRIEF_GENERATION.get('max_article_content_length', 2000)
+                    if len(cleaned_content) > max_content_length:
+                        cleaned_content = cleaned_content[:max_content_length] + "..."
+
+                    # Use extracted title if available and better
+                    if title and len(title) > len(article.get('title', '')):
+                        enriched_article['title'] = title
+
+                    # Replace summary with full content for richer briefs
+                    enriched_article['full_content'] = cleaned_content
+                    enriched_article['summary'] = cleaned_content[:500] + "..." if len(cleaned_content) > 500 else cleaned_content
+                    enriched_article['content_extracted'] = True
+
+                    logger.info(f"Successfully extracted {len(cleaned_content)} chars from {url}")
+                    enriched_articles.append(enriched_article)
+                else:
+                    logger.warning(f"Insufficient content extracted from {url}, using original")
+                    enriched_articles.append(article)
+
+            except Exception as e:
+                logger.error(f"Failed to extract content from {article.get('url', 'unknown')}: {str(e)}")
+                # Fall back to original article data
+                enriched_articles.append(article)
+
+        logger.info(f"Article extraction complete: {len([a for a in enriched_articles if a.get('content_extracted')])} of {len(articles)} articles enriched")
+        return enriched_articles
+
 
 if __name__ == '__main__':
     # For local testing
-    engine = BriefGenerationEngine()
-    results = engine.generate_daily_briefs()
-    print(f"Brief generation completed: {results}")
+    async def test():
+        engine = BriefGenerationEngine()
+        results = await engine.generate_daily_briefs()
+        print(f"Brief generation completed: {results}")
+
+    asyncio.run(test())

@@ -83,6 +83,7 @@ BRIEF_GENERATION = {
     },
     'max_articles_per_brief': 8,   # Maximum articles to include in one brief
     'min_articles_per_brief': 3,   # Minimum articles needed to generate brief
+    'max_article_content_length': 2000,  # Max chars per article to control token costs
     'include_source_attribution': True,
     'format_style': 'conversational',  # conversational, formal, casual
     'include_timestamps': False,

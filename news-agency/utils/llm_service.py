@@ -175,10 +175,14 @@ class LLMService:
         """Format articles for inclusion in brief generation prompt."""
         formatted = []
         for i, article in enumerate(articles, 1):
+            # Use full content if available, otherwise use summary
+            content = article.get('full_content') or article.get('summary', 'No content available')
+            content_type = "Full Content" if article.get('content_extracted') else "Summary"
+
             formatted.append(f"""
 Article {i}: {article.get('title', 'No Title')}
 Source: {article.get('source', 'Unknown')}
-Summary: {article.get('summary', 'No summary available')}
+{content_type}: {content}
 URL: {article.get('url', '')}
 """)
         return "\n".join(formatted)
