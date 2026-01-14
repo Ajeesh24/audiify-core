@@ -177,7 +177,7 @@ class RankingEngine:
                 date,
                 status='ranked',
                 ranking_position=ranking_position,
-                final_ranking_score=final_score,
+                final_ranking_score=Decimal(str(final_score)),
                 ranked_at=datetime.utcnow().isoformat()
             )
 

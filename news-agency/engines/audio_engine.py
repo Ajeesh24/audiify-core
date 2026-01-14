@@ -17,6 +17,7 @@ from models import Brief, Job, EngineStatus
 from config import AUDIO_SETTINGS, S3_SETTINGS, COST_OPTIMIZATION, get_s3_key
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
 from utils.metrics import cost_tracker, time_operation
+from utils.tts_service import tts_service
 
 logger = get_logger(__name__)
 
@@ -142,7 +143,7 @@ class AudioGenerationEngine:
 
     def _generate_brief_audio(self, brief: Dict, date: str) -> Dict[str, any]:
         """
-        Generate audio for a single brief
+        Generate audio for a single brief using OpenAI TTS
 
         Args:
             brief: Brief data from database
@@ -153,10 +154,9 @@ class AudioGenerationEngine:
         """
         category = brief['category']
         content = brief['content']
-        brief_id = brief['brief_id']
 
         # Estimate cost and check budget
-        estimated_cost = self._estimate_audio_cost(content)
+        estimated_cost = tts_service.estimate_cost(content)
         if cost_tracker.get_daily_cost() + estimated_cost > COST_OPTIMIZATION['target_daily_cost']:
             return {
                 'success': False,
@@ -166,59 +166,38 @@ class AudioGenerationEngine:
             }
 
         try:
-            # Generate audio using primary provider
-            audio_data, duration, cost = self._generate_audio_with_provider(
-                content, self.provider, category
+            logger.info(f"Generating audio with OpenAI TTS for {category}")
+
+            # Generate audio using OpenAI TTS service
+            audio_result = tts_service.generate_brief_audio(
+                text=content,
+                category=category,
+                date=date,
+                voice="alloy",  # Professional news voice
+                model="tts-1"   # Standard quality for cost efficiency
             )
-
-            if not audio_data:
-                # Fallback to AWS Polly if primary provider fails
-                logger.warning(f"Primary provider failed, falling back to AWS Polly for {category}")
-                audio_data, duration, cost = self._generate_audio_with_provider(
-                    content, 'aws_polly', category
-                )
-
-                if not audio_data:
-                    return {
-                        'success': False,
-                        'error': 'Both audio providers failed',
-                        'duration': 0,
-                        'cost_usd': 0.0
-                    }
-
-            # Upload to S3
-            s3_key = self._upload_audio_to_s3(audio_data, category, date)
-            if not s3_key:
-                return {
-                    'success': False,
-                    'error': 'Failed to upload audio to S3',
-                    'duration': 0,
-                    'cost_usd': cost
-                }
-
-            # Generate public URL
-            audio_url = f"https://{self.s3_bucket}.s3.{S3_SETTINGS['region']}.amazonaws.com/{s3_key}"
 
             # Update brief with audio information
             self.brief_model.update_audio_info(
                 category=category,
                 date=date,
-                audio_url=audio_url,
-                actual_duration=duration,
-                audio_size=len(audio_data)
+                audio_url=audio_result['audio_url'],
+                actual_duration=audio_result['duration'],
+                audio_size=audio_result['size']
             )
 
             # Track audio generation cost
-            if self.provider == 'elevenlabs':
-                cost_tracker.track_audio_usage('audio_generation', len(content))
+            cost_tracker.track_audio_usage('audio_generation', len(content))
 
             return {
                 'success': True,
-                'audio_url': audio_url,
-                's3_key': s3_key,
-                'duration': duration,
-                'file_size': len(audio_data),
-                'cost_usd': cost
+                'audio_url': audio_result['audio_url'],
+                'audio_id': audio_result['audio_id'],
+                's3_key': audio_result['s3_key'],
+                'duration': audio_result['duration'],
+                'file_size': audio_result['size'],
+                'cost_usd': estimated_cost,
+                'cached': audio_result.get('cached', False)
             }
 
         except Exception as e:
