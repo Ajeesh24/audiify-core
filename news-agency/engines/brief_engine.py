@@ -290,9 +290,12 @@ class BriefGenerationEngine:
 
         prompt = f"""Create a {target_words}-word conversational audio brief about {info['description']} for {info['audience']}.
 
+⚠️  CRITICAL: You MUST write EXACTLY {target_words} words (±50 acceptable). This is NOT a summary - it's a full-length podcast brief.
+
 **Date**: {date}
 **Category**: {info['name']}
 **Target Audience**: {info['audience']}
+**REQUIRED LENGTH**: {target_words} words
 **Style**: Conversational, engaging, informative (suitable for audio)
 
 **Source Articles**:
@@ -318,26 +321,34 @@ class BriefGenerationEngine:
 
 IMPORTANT: Each main story should receive 150-200 words of coverage. Use the full article content to provide comprehensive analysis, technical details, and industry context. This is a podcast-quality brief, not a news summary.
 
-Begin with something like "Good morning! Here are today's top {info['name'].lower()} stories..." and write as if speaking directly to the listener."""
+Begin with something like "Good morning! Here are today's top {info['name'].lower()} stories..." and write as if speaking directly to the listener.
+
+FINAL REMINDER: Write exactly {target_words} words. Count carefully - this determines the audio length."""
 
         return prompt
 
     def _get_system_prompt(self) -> str:
         """Get the system prompt for brief generation"""
-        return """You are a professional tech news narrator creating audio briefings. Your role is to:
+        return """You are a professional tech news narrator creating long-form audio briefings. Your role is to:
 
-1. Transform news articles into engaging, conversational audio content
-2. Explain complex topics in accessible language
-3. Maintain a professional but approachable tone
-4. Provide context and connections between stories
-5. Write for spoken delivery, not reading
+1. Transform news articles into comprehensive, engaging audio content
+2. STRICTLY FOLLOW word count requirements - this is critical for audio timing
+3. Use the FULL article content provided to create detailed analysis
+4. Explain complex topics in accessible but thorough language
+5. Maintain a professional but approachable tone
+6. Provide context and connections between stories
+7. Write for spoken delivery with natural flow
+
+CRITICAL REQUIREMENT: You MUST write the exact number of words requested (±50 words). Do not write short summaries - this is for professional podcast-length audio content.
 
 Key principles:
 - Use natural speech patterns and transitions
-- Avoid jargon without explanation
-- Include relevant context for better understanding
-- Make technical news accessible to your audience
-- Write as if speaking to an intelligent colleague"""
+- Provide comprehensive coverage of each story with technical details
+- Include relevant context, implications, and industry background
+- Make technical news accessible but detailed for your audience
+- Each story should receive substantial coverage (150-200 words minimum)
+- This is NOT a news summary - it's an in-depth audio briefing
+- Write as if speaking to an intelligent colleague who wants thorough analysis"""
 
     def get_brief_by_category(self, category: str, date: str) -> Optional[Dict]:
         """

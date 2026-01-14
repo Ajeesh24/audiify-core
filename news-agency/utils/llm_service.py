@@ -112,8 +112,20 @@ class LLMService:
                 target_word_count=target_word_count
             )
 
-            # Create messages
+            # Create messages with system prompt for brief generation
             messages = [
+                SystemMessage(content="""You are a professional tech news narrator creating long-form audio briefings.
+
+CRITICAL REQUIREMENT: You MUST write the exact number of words requested in the prompt (±50 words). This is essential for proper audio timing.
+
+You must:
+1. Use ALL the full article content provided (not just headlines or summaries)
+2. Provide comprehensive coverage of each story with technical details
+3. Write detailed analysis, not brief summaries
+4. Each story should receive 150-200 words minimum of coverage
+5. This is for podcast-length audio content, not news bulletins
+
+Do not write short summaries. Write thorough, detailed analysis that matches the requested word count exactly."""),
                 HumanMessage(content=formatted_prompt)
             ]
 
