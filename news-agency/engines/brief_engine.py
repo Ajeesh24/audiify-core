@@ -408,48 +408,6 @@ Key principles:
             logger.error(f"Error regenerating brief for {category}: {str(e)}")
             return {'error': str(e)}
 
-
-def lambda_handler(event, context):
-    """
-    AWS Lambda handler for brief generation
-
-    Expected event format:
-    {
-        "date": "2024-01-15",  # optional, defaults to today
-        "category": "general-tech"  # optional, if provided only generates for this category
-    }
-    """
-    try:
-        date = event.get('date')
-        category = event.get('category')
-
-        engine = BriefGenerationEngine()
-
-        if category:
-            # Generate brief for specific category only
-            result = engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
-            return {
-                'statusCode': 200,
-                'body': {
-                    'category': category,
-                    'result': result
-                }
-            }
-        else:
-            # Generate all daily briefs
-            results = engine.generate_daily_briefs(date)
-            return {
-                'statusCode': 200,
-                'body': results
-            }
-
-    except Exception as e:
-        logger.error(f"Lambda handler error: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': {'error': str(e)}
-        }
-
     def _extract_article_contents_sync(self, articles: List[Dict]) -> List[Dict]:
         """
         Extract full article content for richer brief generation (synchronous version).
@@ -515,6 +473,48 @@ def lambda_handler(event, context):
 
         logger.info(f"Article extraction complete: {len([a for a in enriched_articles if a.get('content_extracted')])} of {len(articles)} articles enriched")
         return enriched_articles
+
+
+def lambda_handler(event, context):
+    """
+    AWS Lambda handler for brief generation
+
+    Expected event format:
+    {
+        "date": "2024-01-15",  # optional, defaults to today
+        "category": "general-tech"  # optional, if provided only generates for this category
+    }
+    """
+    try:
+        date = event.get('date')
+        category = event.get('category')
+
+        engine = BriefGenerationEngine()
+
+        if category:
+            # Generate brief for specific category only
+            result = engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
+            return {
+                'statusCode': 200,
+                'body': {
+                    'category': category,
+                    'result': result
+                }
+            }
+        else:
+            # Generate all daily briefs
+            results = engine.generate_daily_briefs(date)
+            return {
+                'statusCode': 200,
+                'body': results
+            }
+
+    except Exception as e:
+        logger.error(f"Lambda handler error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': {'error': str(e)}
+        }
 
 
 if __name__ == '__main__':
