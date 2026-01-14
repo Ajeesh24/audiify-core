@@ -9,6 +9,7 @@ import time
 import hashlib
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from models import Article, Job, EngineStatus
@@ -382,7 +383,7 @@ class CategorizationEngine:
                     article_id,
                     date,
                     category=article['category'],
-                    relevance_score=article['relevance_score'],
+                    relevance_score=Decimal(str(article['relevance_score'])),
                     status='categorized'
                 )
             except Exception as e:
