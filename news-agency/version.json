@@ -1,14 +1,14 @@
 {
-  "version": "0.0.6",
+  "version": "0.0.7",
   "news-agency": {
-    "rss-engine": "0.0.6",
-    "categorization-engine": "0.0.6",
-    "ranking-engine": "0.0.6",
-    "brief-engine": "0.0.6",
-    "audio-engine": "0.0.6",
-    "orchestrator": "0.0.6",
-    "public-api": "0.0.6",
-    "internal-api": "0.0.6"
+    "rss-engine": "0.0.7",
+    "categorization-engine": "0.0.7",
+    "ranking-engine": "0.0.7",
+    "brief-engine": "0.0.7",
+    "audio-engine": "0.0.7",
+    "orchestrator": "0.0.7",
+    "public-api": "0.0.7",
+    "internal-api": "0.0.7"
   },
   "build": {
     "date": "2026-01-14",

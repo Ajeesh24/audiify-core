@@ -9,6 +9,7 @@ import time
 import math
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+from decimal import Decimal
 from collections import defaultdict
 
 from models import Article, Job, EngineStatus
@@ -185,6 +186,9 @@ class RankingEngine:
             Enhanced ranking score
         """
         base_score = article.get('relevance_score', 5.0)
+        # Convert Decimal to float for calculations
+        if isinstance(base_score, Decimal):
+            base_score = float(base_score)
 
         # Apply source authority boost
         source_boost = self._get_source_authority_boost(article)
@@ -437,8 +441,13 @@ class RankingEngine:
         Returns:
             Dictionary of score components
         """
+        base_relevance = article.get('relevance_score', 5.0)
+        # Convert Decimal to float for consistency
+        if isinstance(base_relevance, Decimal):
+            base_relevance = float(base_relevance)
+
         return {
-            'base_relevance': article.get('relevance_score', 5.0),
+            'base_relevance': base_relevance,
             'source_authority': self._get_source_authority_boost(article),
             'freshness_factor': self._get_freshness_factor(article),
             'engagement_prediction': self._predict_engagement(article),
