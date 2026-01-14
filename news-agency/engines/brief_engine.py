@@ -6,7 +6,6 @@ Optimized for cost efficiency with detailed token management
 """
 
 import time
-import asyncio
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
@@ -41,7 +40,7 @@ class BriefGenerationEngine:
         self.job_model = Job()
         # LLM service is already initialized as a global instance
 
-    async def generate_daily_briefs(self, date: str = None) -> Dict[str, any]:
+    def generate_daily_briefs(self, date: str = None) -> Dict[str, any]:
         """
         Main entry point for daily brief generation
 
@@ -88,7 +87,7 @@ class BriefGenerationEngine:
                 logger.info(f"Generating brief for category: {category}")
 
                 try:
-                    category_results = await self._generate_category_brief(category, date)
+                    category_results = self._generate_category_brief(category, date)
                     results['categories'][category] = category_results
 
                     if category_results['success']:
@@ -130,7 +129,7 @@ class BriefGenerationEngine:
             self.job_model.fail_engine(date, 'brief_engine', str(e))
             raise
 
-    async def _generate_category_brief(self, category: str, date: str) -> Dict[str, any]:
+    def _generate_category_brief(self, category: str, date: str) -> Dict[str, any]:
         """
         Generate a brief for a specific category
 
@@ -156,7 +155,7 @@ class BriefGenerationEngine:
 
         # Extract full article content for richer briefs
         logger.info(f"Extracting full content from {len(top_articles)} articles for {category}")
-        enriched_articles = await self._extract_article_contents(top_articles)
+        enriched_articles = self._extract_article_contents_sync(top_articles)
 
         # Create brief generation prompt
         prompt = self._create_brief_prompt(category, enriched_articles, date)
@@ -378,7 +377,7 @@ Key principles:
             'error_message': engine_data.get('error_message')
         }
 
-    async def regenerate_brief(self, category: str, date: str) -> Dict[str, any]:
+    def regenerate_brief(self, category: str, date: str) -> Dict[str, any]:
         """
         Regenerate a brief for a specific category (useful for testing or manual triggers)
 
@@ -396,7 +395,7 @@ Key principles:
             return {'error': 'Daily budget exceeded'}
 
         try:
-            result = await self._generate_category_brief(category, date)
+            result = self._generate_category_brief(category, date)
 
             if result['success']:
                 logger.info(f"Successfully regenerated brief for {category}")
@@ -410,7 +409,7 @@ Key principles:
             return {'error': str(e)}
 
 
-async def lambda_handler(event, context):
+def lambda_handler(event, context):
     """
     AWS Lambda handler for brief generation
 
@@ -428,7 +427,7 @@ async def lambda_handler(event, context):
 
         if category:
             # Generate brief for specific category only
-            result = await engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
+            result = engine._generate_category_brief(category, date or datetime.utcnow().strftime('%Y-%m-%d'))
             return {
                 'statusCode': 200,
                 'body': {
@@ -438,7 +437,7 @@ async def lambda_handler(event, context):
             }
         else:
             # Generate all daily briefs
-            results = await engine.generate_daily_briefs(date)
+            results = engine.generate_daily_briefs(date)
             return {
                 'statusCode': 200,
                 'body': results
@@ -451,9 +450,9 @@ async def lambda_handler(event, context):
             'body': {'error': str(e)}
         }
 
-    async def _extract_article_contents(self, articles: List[Dict]) -> List[Dict]:
+    def _extract_article_contents_sync(self, articles: List[Dict]) -> List[Dict]:
         """
-        Extract full article content for richer brief generation.
+        Extract full article content for richer brief generation (synchronous version).
 
         Args:
             articles: List of article metadata from database
@@ -474,8 +473,8 @@ async def lambda_handler(event, context):
 
                 logger.info(f"Extracting content from: {url}")
 
-                # Use the article extractor
-                title, full_content, is_paywalled = await self.extractor.extract_article(url)
+                # Use the article extractor (synchronous version)
+                title, full_content, is_paywalled = self.extractor.extract_article_sync(url)
 
                 if is_paywalled:
                     logger.warning(f"Article is paywalled, using original summary: {url}")
@@ -520,9 +519,6 @@ async def lambda_handler(event, context):
 
 if __name__ == '__main__':
     # For local testing
-    async def test():
-        engine = BriefGenerationEngine()
-        results = await engine.generate_daily_briefs()
-        print(f"Brief generation completed: {results}")
-
-    asyncio.run(test())
+    engine = BriefGenerationEngine()
+    results = engine.generate_daily_briefs()
+    print(f"Brief generation completed: {results}")
