@@ -3,7 +3,10 @@ FROM public.ecr.aws/lambda/python:3.11
 
 # Copy requirements and install dependencies
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
-RUN pip install -r requirements.txt
+
+# Upgrade pip and install dependencies with binary-only packages
+RUN pip install --upgrade pip && \
+    pip install --only-binary=:all: -r requirements.txt
 
 # Copy the entire news-agency code
 COPY . ${LAMBDA_TASK_ROOT}
