@@ -1,11 +1,10 @@
 """
 Engine 2: Categorization Engine
 
-Uses LLM to categorize articles and score relevance
+Uses LangChain and LLM to categorize articles and score relevance
 Optimized for cost efficiency with minimal token usage
 """
 
-import openai
 import time
 import hashlib
 from typing import Dict, List, Optional, Tuple
@@ -14,11 +13,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from models import Article, Job, EngineStatus
 from config import (
-    OPENAI_SETTINGS, COST_OPTIMIZATION, get_classification_prompt,
+    COST_OPTIMIZATION, get_classification_prompt,
     get_all_categories, RELEVANCE_FACTORS
 )
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
 from utils.metrics import cost_tracker, time_operation, estimate_tokens, calculate_llm_cost
+from utils.llm_service import llm_service
 
 logger = get_logger(__name__)
 
@@ -36,12 +36,7 @@ class CategorizationEngine:
     def __init__(self):
         self.article_model = Article()
         self.job_model = Job()
-
-        # Initialize OpenAI client
-        openai.api_key = OPENAI_SETTINGS['api_key']
-        self.model = OPENAI_SETTINGS['model']
-        self.max_tokens = OPENAI_SETTINGS['max_tokens']
-        self.temperature = OPENAI_SETTINGS['temperature']
+        # LLM service is already initialized as a global instance
 
     def categorize_daily_articles(self, date: str = None) -> Dict[str, any]:
         """
@@ -244,31 +239,24 @@ class CategorizationEngine:
 
             # Estimate tokens for cost control
             estimated_tokens = estimate_tokens(prompt) + 50  # +50 for response
-            estimated_cost = calculate_llm_cost(prompt, self.model, 50)
+            estimated_cost = calculate_llm_cost(prompt, 'gpt-4o-mini', 50)
 
             # Check if this request would exceed budget
             if cost_tracker.get_daily_cost() + estimated_cost > COST_OPTIMIZATION['target_daily_cost']:
                 logger.warning("Skipping article categorization - would exceed daily budget")
                 return None, 0, 0
 
-            # Make OpenAI request
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=50,  # Short response expected
-                temperature=self.temperature,
-                timeout=OPENAI_SETTINGS['timeout']
+            # Use LangChain LLM service for categorization
+            result = llm_service.categorize_article(
+                title=article['title'],
+                summary=article['summary'],
+                source=article['source'],
+                prompt_template=prompt
             )
 
-            # Extract category from response
-            category_response = response.choices[0].message.content.strip().lower()
-
-            # Map response to valid category
-            category = self._parse_category_response(category_response)
+            category = result['category']
             if not category:
-                logger.warning(f"Invalid category response: {category_response}")
+                logger.warning(f"Invalid category response from LLM")
                 return None, 0, 0
 
             # Calculate relevance score
@@ -283,13 +271,14 @@ class CategorizationEngine:
                 'categorized_at': datetime.utcnow().isoformat()
             })
 
-            # Track usage and cost
-            tokens_used = response.usage.total_tokens
+            # Track usage and cost using token estimates from LLM service
+            token_usage = result.get('token_usage', {})
+            tokens_used = token_usage.get('total_tokens', estimated_tokens)
             cost = cost_tracker.track_llm_usage(
                 'categorization',
-                self.model,
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens
+                'gpt-4o-mini',
+                token_usage.get('input_tokens', estimated_tokens - 50),
+                token_usage.get('output_tokens', 50)
             )
 
             return categorized_article, tokens_used, cost

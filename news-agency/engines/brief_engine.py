@@ -1,22 +1,22 @@
 """
 Engine 4: Brief Generation Engine
 
-Generates conversational audio briefs from ranked articles using LLM
+Generates conversational audio briefs from ranked articles using LangChain LLM
 Optimized for cost efficiency with detailed token management
 """
 
-import openai
 import time
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from models import Article, Brief, Job, EngineStatus
 from config import (
-    OPENAI_SETTINGS, COST_OPTIMIZATION, BRIEF_GENERATION,
+    COST_OPTIMIZATION, BRIEF_GENERATION,
     get_all_categories, get_classification_prompt
 )
 from utils.logger import get_logger, log_engine_start, log_engine_complete, log_engine_error
 from utils.metrics import cost_tracker, time_operation, estimate_tokens, calculate_llm_cost
+from utils.llm_service import llm_service
 
 logger = get_logger(__name__)
 
@@ -36,12 +36,7 @@ class BriefGenerationEngine:
         self.article_model = Article()
         self.brief_model = Brief()
         self.job_model = Job()
-
-        # Initialize OpenAI client
-        openai.api_key = OPENAI_SETTINGS['api_key']
-        self.model = OPENAI_SETTINGS['model']
-        self.max_tokens = OPENAI_SETTINGS['max_tokens']
-        self.temperature = OPENAI_SETTINGS['temperature']
+        # LLM service is already initialized as a global instance
 
     def generate_daily_briefs(self, date: str = None) -> Dict[str, any]:
         """
@@ -161,7 +156,7 @@ class BriefGenerationEngine:
 
         # Estimate cost and check budget
         estimated_tokens = estimate_tokens(prompt) + BRIEF_GENERATION['target_word_count'][category] // 3
-        estimated_cost = calculate_llm_cost(prompt, self.model, estimated_tokens // 2)
+        estimated_cost = calculate_llm_cost(prompt, 'gpt-4o-mini', estimated_tokens // 2)
 
         if cost_tracker.get_daily_cost() + estimated_cost > COST_OPTIMIZATION['target_daily_cost']:
             return {
@@ -173,28 +168,26 @@ class BriefGenerationEngine:
             }
 
         try:
-            # Generate brief using OpenAI
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self._get_system_prompt()},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=min(2000, BRIEF_GENERATION['target_word_count'][category] * 2),  # Roughly 2 tokens per word
-                temperature=self.temperature,
-                timeout=OPENAI_SETTINGS['timeout']
+            # Generate brief using LangChain LLM service
+            brief_result = llm_service.generate_brief(
+                category=category,
+                articles=top_articles,
+                date=date,
+                prompt_template=prompt,
+                target_word_count=BRIEF_GENERATION['target_word_count'][category]
             )
 
-            generated_content = response.choices[0].message.content.strip()
-            word_count = len(generated_content.split())
+            generated_content = brief_result['content']
+            word_count = brief_result['word_count']
 
             # Track usage and cost
-            tokens_used = response.usage.total_tokens
+            token_usage = brief_result.get('token_usage', {})
+            tokens_used = token_usage.get('total_tokens', estimated_tokens)
             cost = cost_tracker.track_llm_usage(
                 'brief_generation',
-                self.model,
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens
+                'gpt-4o-mini',
+                token_usage.get('input_tokens', estimated_tokens // 2),
+                token_usage.get('output_tokens', estimated_tokens // 2)
             )
 
             # Calculate estimated audio duration (150 words per minute)
