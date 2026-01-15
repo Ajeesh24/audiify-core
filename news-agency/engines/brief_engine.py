@@ -279,6 +279,7 @@ class BriefGenerationEngine:
 
         info = category_info.get(category, category_info['general-tech'])
         target_words = BRIEF_GENERATION['target_word_count'][category]
+        info_name_lower = info['name'].lower()
 
         # Format articles for prompt
         articles_text = "\n".join([
@@ -321,7 +322,7 @@ class BriefGenerationEngine:
 
 IMPORTANT: Each main story should receive 150-200 words of coverage. Use the full article content to provide comprehensive analysis, technical details, and industry context. This is a podcast-quality brief, not a news summary.
 
-Begin with something like "Good morning! Here are today's top {info['name'].lower()} stories..." and write as if speaking directly to the listener.
+Begin with something like "Good morning! Here are today's top {info_name_lower} stories..." and write as if speaking directly to the listener.
 
 FINAL REMINDER: Write exactly {target_words} words. Count carefully - this determines the audio length."""
 

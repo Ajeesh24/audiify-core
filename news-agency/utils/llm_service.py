@@ -94,38 +94,36 @@ class LLMService:
             category: Brief category
             articles: List of articles to include
             date: Date for the brief
-            prompt_template: Brief generation prompt template
+            prompt_template: Already formatted prompt (not a template)
             target_word_count: Target word count for the brief
 
         Returns:
             Dict containing generated brief content and metadata
         """
         try:
-            # Format articles for the prompt
-            articles_text = self._format_articles_for_prompt(articles)
-
-            # Format the prompt
-            formatted_prompt = prompt_template.format(
-                category=category,
-                date=date,
-                articles=articles_text,
-                target_word_count=target_word_count
-            )
+            # The prompt_template is already formatted from brief_engine, so use it directly
+            formatted_prompt = prompt_template
 
             # Create messages with system prompt for brief generation
             messages = [
-                SystemMessage(content="""You are a professional tech news narrator creating long-form audio briefings.
+                SystemMessage(content=f"""You are a professional tech news narrator creating long-form audio briefings.
 
-CRITICAL REQUIREMENT: You MUST write the exact number of words requested in the prompt (±50 words). This is essential for proper audio timing.
+⚠️  ABSOLUTE CRITICAL REQUIREMENT: You MUST write EXACTLY {target_word_count} words (±50 words). This is MANDATORY for proper audio timing. DO NOT write short summaries.
+
+WORD COUNT ENFORCEMENT:
+- Target: {target_word_count} words
+- Minimum: {target_word_count - 50} words
+- Maximum: {target_word_count + 50} words
+- NO EXCEPTIONS - This determines audio length
 
 You must:
 1. Use ALL the full article content provided (not just headlines or summaries)
 2. Provide comprehensive coverage of each story with technical details
-3. Write detailed analysis, not brief summaries
+3. Write detailed analysis, not brief summaries - this is PODCAST-LENGTH content
 4. Each story should receive 150-200 words minimum of coverage
-5. This is for podcast-length audio content, not news bulletins
+5. Write {target_word_count} words total - count every single word
 
-Do not write short summaries. Write thorough, detailed analysis that matches the requested word count exactly."""),
+FAILURE TO MEET WORD COUNT WILL RESULT IN UNUSABLE AUDIO. Write detailed, comprehensive analysis that reaches exactly {target_word_count} words."""),
                 HumanMessage(content=formatted_prompt)
             ]
 
@@ -134,14 +132,19 @@ Do not write short summaries. Write thorough, detailed analysis that matches the
 
             # Parse and clean the response
             brief_content = self._clean_brief_content(response.content)
+            word_count = len(brief_content.split())
 
             result = {
                 'content': brief_content,
-                'word_count': len(brief_content.split()),
+                'word_count': word_count,
                 'token_usage': self._estimate_token_usage(formatted_prompt, brief_content)
             }
 
-            logger.info(f"Brief generated for {category}: {result['word_count']} words")
+            # Enhanced logging for debugging word count issues
+            logger.info(f"Brief generated for {category}: {word_count} words (target: {target_word_count})")
+            if word_count < target_word_count - 100:
+                logger.warning(f"Brief significantly under target: {word_count}/{target_word_count} words")
+                logger.debug(f"Brief preview: {brief_content[:200]}...")
 
             return result
 

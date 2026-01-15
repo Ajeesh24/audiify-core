@@ -36,7 +36,7 @@ S3_SETTINGS = {
 OPENAI_SETTINGS = {
     'api_key': os.getenv('OPENAI_API_KEY'),
     'model': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),  # Cost-optimized model
-    'max_tokens': int(os.getenv('OPENAI_MAX_TOKENS', '1000')),
+    'max_tokens': int(os.getenv('OPENAI_MAX_TOKENS', '3000')),  # Increased for 1500-word briefs
     'temperature': float(os.getenv('OPENAI_TEMPERATURE', '0.3')),
     'timeout': int(os.getenv('OPENAI_TIMEOUT', '30'))
 }
@@ -134,11 +134,11 @@ RELIABILITY = {
 # Development/Testing Settings
 if ENVIRONMENT == 'development':
     # Override some settings for local development
-    COST_OPTIMIZATION['token_budget_per_day'] = 1000  # Smaller budget for dev
+    COST_OPTIMIZATION['token_budget_per_day'] = 5000  # Increased budget for 1500-word briefs
     BRIEF_GENERATION['target_word_count'] = {
-        'general-tech': 300,      # Shorter briefs for testing
-        'ai-ml': 300,
-        'devops-platform': 300
+        'general-tech': 1500,     # Full length for testing article extraction
+        'ai-ml': 1500,
+        'devops-platform': 1500
     }
     COST_OPTIMIZATION['max_articles_per_category'] = 10  # Fewer articles in dev
 
