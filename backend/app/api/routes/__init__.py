@@ -519,7 +519,13 @@ async def get_latest_briefs(limit: int = 10):
                 # Generate presigned URL if audio exists
                 audio_url = None
                 if brief.get('audio_url'):
-                    s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+                    # audio_url in DynamoDB is stored as s3://bucket/path or just the path
+                    if brief.get('audio_url', '').startswith('s3://'):
+                        s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "")
+                    else:
+                        # Construct the correct S3 key matching audio_engine.py storage pattern
+                        # Pattern: audio/news-briefs/{date}/daily-brief-{category}-{date}.mp3
+                        s3_key = f"audio/news-briefs/{brief.get('date')}/daily-brief-{brief.get('category')}-{brief.get('date')}.mp3"
 
                     try:
                         audio_url = s3_client.generate_presigned_url(
@@ -602,7 +608,13 @@ async def get_category_briefs(category: str, limit: int = 10, offset: int = 0):
             # Generate presigned URL if audio exists
             audio_url = None
             if brief.get('audio_url'):
-                s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+                # audio_url in DynamoDB is stored as s3://bucket/path or just the path
+                if brief.get('audio_url', '').startswith('s3://'):
+                    s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "")
+                else:
+                    # Construct the correct S3 key matching audio_engine.py storage pattern
+                    # Pattern: audio/news-briefs/{date}/daily-brief-{category}-{date}.mp3
+                    s3_key = f"audio/news-briefs/{brief.get('date')}/daily-brief-{brief.get('category')}-{brief.get('date')}.mp3"
 
                 try:
                     audio_url = s3_client.generate_presigned_url(
