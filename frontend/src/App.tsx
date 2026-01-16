@@ -41,6 +41,9 @@ function AuthenticatedApp() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
 
+  // Auth Modal state
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   // System theme detection
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -179,7 +182,7 @@ function AuthenticatedApp() {
   // Dynamic background based on system theme
   const getThemeBackground = () => {
     if (isDarkMode) {
-      return 'min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950';
+      return 'min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-black';
     } else {
       return 'min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100';
     }
@@ -190,8 +193,8 @@ function AuthenticatedApp() {
     if (isDarkMode) {
       return (
         <>
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-slate-800/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-slate-700/20 rounded-full blur-3xl" />
         </>
       );
     } else {
@@ -519,8 +522,9 @@ function AuthenticatedApp() {
   };
 
   const handleAuthRequired = (trigger: { type: string; id: string }) => {
-    // This shouldn't happen since we're already authenticated, but handle it
+    // Show auth modal when authentication is required
     console.log('Auth required for:', trigger);
+    setShowAuthModal(true);
   };
 
   // Handle modal submit for creating new audio
@@ -772,40 +776,7 @@ function AuthenticatedApp() {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className={`${getThemeBackground()} flex items-center justify-center p-4`}>
-        {/* Ambient background effects */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          {getAmbientEffects()}
-        </div>
-
-        <div className="relative z-10 w-full max-w-md">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
-          >
-            <div className="inline-flex items-center gap-3 mb-4">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
-                <Headphones className="w-8 h-8 text-white" />
-              </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-purple-200 to-violet-300 bg-clip-text text-transparent">
-                Audifyy
-              </h1>
-            </div>
-            <p className="text-slate-400 text-lg">
-              Transform articles into audio with AI
-            </p>
-          </motion.div>
-
-          <AuthForm onSuccess={() => {}} isDarkMode={isDarkMode} />
-        </div>
-      </div>
-    );
-  }
-
+  // Show the main app to everyone (authentication required only for playback)
   return (
     <div className={`${getThemeBackground()} safe-area-all`}>
       {/* Ambient background effects */}
@@ -814,77 +785,97 @@ function AuthenticatedApp() {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-6 sm:py-8 max-w-4xl container-responsive">
-        {/* Header with user info */}
+        {/* Header with user info or sign in button */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="relative mb-6 sm:mb-8"
         >
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Modern Logo Design */}
-            <div className="relative">
-              <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-500 via-violet-500 to-indigo-600 rounded-2xl sm:rounded-3xl shadow-lg shadow-purple-500/25 relative overflow-hidden">
-                {/* Background Pattern */}
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-                <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-full -mr-4 -mt-4"></div>
-                <div className="absolute bottom-0 left-0 w-6 h-6 bg-white/5 rounded-full -ml-3 -mb-3"></div>
+          <div className="flex items-center justify-between gap-3 sm:gap-4">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="relative">
+                <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-500 via-violet-500 to-indigo-600 rounded-2xl sm:rounded-3xl shadow-lg shadow-purple-500/25 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+                  <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-full -mr-4 -mt-4"></div>
+                  <div className="absolute bottom-0 left-0 w-6 h-6 bg-white/5 rounded-full -ml-3 -mb-3"></div>
 
-                {/* Icon Stack */}
-                <div className="relative flex items-center justify-center">
-                  <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white relative z-10" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play className="w-3 h-3 sm:w-4 sm:h-4 text-purple-200 opacity-50 translate-x-0.5 translate-y-0.5" />
+                  <div className="relative flex items-center justify-center">
+                    <Headphones className="w-6 h-6 sm:w-8 sm:h-8 text-white relative z-10" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play className="w-3 h-3 sm:w-4 sm:h-4 text-purple-200 opacity-50 translate-x-0.5 translate-y-0.5" />
+                    </div>
                   </div>
                 </div>
+
+                <div className="absolute inset-0 rounded-2xl sm:rounded-3xl border-2 border-purple-400/30 animate-pulse"></div>
+                <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-500/20 to-violet-500/20 blur-xl -z-10"></div>
               </div>
 
-              {/* Animated Pulse Ring */}
-              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl border-2 border-purple-400/30 animate-pulse"></div>
-              <div className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-500/20 to-violet-500/20 blur-xl -z-10"></div>
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r ${
-                  isDarkMode
-                    ? 'from-white via-purple-200 to-violet-300'
-                    : 'from-slate-800 via-purple-600 to-violet-700'
-                } bg-clip-text text-transparent`}>
-                  Audifyy
-                </h1>
-                <div className="hidden sm:flex items-center gap-1">
-                  <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />
-                  <span className={`text-xs font-medium px-2 py-1 bg-purple-500/20 rounded-full ${
-                    isDarkMode ? 'text-purple-300' : 'text-purple-700'
-                  }`}>
-                    AI-Powered
-                  </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r ${
+                    isDarkMode
+                      ? 'from-white via-purple-200 to-violet-300'
+                      : 'from-slate-800 via-purple-600 to-violet-700'
+                  } bg-clip-text text-transparent`}>
+                    Audifyy
+                  </h1>
+                  <div className="hidden sm:flex items-center gap-1">
+                    <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />
+                    <span className={`text-xs font-medium px-2 py-1 bg-purple-500/20 rounded-full ${
+                      isDarkMode ? 'text-purple-300' : 'text-purple-700'
+                    }`}>
+                      AI-Powered
+                    </span>
+                  </div>
                 </div>
+                {isAuthenticated ? (
+                  <p className={`text-xs sm:text-sm flex items-center gap-2 ${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    <span>Welcome back, {user?.name || user?.email?.split('@')[0]}!</span>
+                  </p>
+                ) : (
+                  <p className={`text-xs sm:text-sm ${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Your daily dose of tech audio content
+                  </p>
+                )}
               </div>
-              <p className={`text-xs sm:text-sm flex items-center gap-2 ${
-                isDarkMode ? 'text-slate-400' : 'text-slate-600'
-              }`}>
-                <span>Welcome back, {user?.name || user?.email?.split('@')[0]}!</span>
-                <span className={`hidden sm:inline ${
-                  isDarkMode ? 'text-slate-600' : 'text-slate-400'
-                }`}>•</span>
-                <span className={`hidden sm:inline text-xs ${
-                  isDarkMode ? 'text-purple-300' : 'text-purple-600'
-                }`}>Premium Experience</span>
-              </p>
             </div>
-          </div>
 
-          {/* Sign Out - Absolutely positioned top right */}
-          <div className="absolute top-0 right-0">
-            <Button
-              onClick={signOut}
-              variant="outline"
-              size="sm"
-              className="bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white border-slate-600/40 hover:border-slate-500/60 text-xs px-3 py-1.5 touch-manipulation transition-all duration-200 backdrop-blur-sm"
-            >
-              Sign Out
-            </Button>
+            {/* Sign In / Sign Out Button */}
+            <div>
+              {isAuthenticated ? (
+                <Button
+                  onClick={signOut}
+                  variant="outline"
+                  size="sm"
+                  className={`${
+                    isDarkMode
+                      ? 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 hover:text-white border-slate-600/40 hover:border-slate-500/60'
+                      : 'bg-white/60 hover:bg-white text-slate-700 hover:text-slate-900 border-slate-300 hover:border-slate-400'
+                  } text-xs px-3 py-1.5 touch-manipulation transition-all duration-200 backdrop-blur-sm`}
+                >
+                  Sign Out
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setShowAuthModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className={`${
+                    isDarkMode
+                      ? 'bg-purple-600/80 hover:bg-purple-500/80 text-white border-purple-500/40 hover:border-purple-400/60'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500 hover:border-purple-600'
+                  } text-xs px-4 py-1.5 touch-manipulation transition-all duration-200 backdrop-blur-sm`}
+                >
+                  Sign In
+                </Button>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -896,7 +887,7 @@ function AuthenticatedApp() {
           <p className={`text-lg leading-relaxed ${
             isDarkMode ? 'text-slate-400' : 'text-slate-600'
           }`}>
-            Your daily dose of tech audio content
+            {isAuthenticated ? 'Your daily dose of tech audio content' : 'Discover daily tech news in audio format'}
           </p>
         </motion.div>
 
@@ -1016,6 +1007,69 @@ function AuthenticatedApp() {
         isProcessing={modalProcessing}
         isDarkMode={isDarkMode}
       />
+
+      {/* Auth Modal */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAuthModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`${
+                isDarkMode ? 'bg-slate-900' : 'bg-white'
+              } rounded-2xl shadow-xl p-6`}>
+                <div className="text-center mb-6">
+                  <div className="inline-flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl shadow-lg shadow-purple-500/25">
+                      <Headphones className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className={`text-3xl font-bold bg-gradient-to-r ${
+                      isDarkMode
+                        ? 'from-white via-purple-200 to-violet-300'
+                        : 'from-slate-800 via-purple-600 to-violet-700'
+                    } bg-clip-text text-transparent`}>
+                      Audifyy
+                    </h2>
+                  </div>
+                  <p className={`text-sm ${
+                    isDarkMode ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Sign in to listen to audio briefs
+                  </p>
+                </div>
+
+                <AuthForm
+                  onSuccess={() => {
+                    setShowAuthModal(false);
+                  }}
+                  isDarkMode={isDarkMode}
+                />
+
+                <button
+                  onClick={() => setShowAuthModal(false)}
+                  className={`mt-4 w-full py-2 text-sm ${
+                    isDarkMode
+                      ? 'text-slate-400 hover:text-slate-300'
+                      : 'text-slate-600 hover:text-slate-700'
+                  } transition-colors`}
+                >
+                  Continue browsing without signing in
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
