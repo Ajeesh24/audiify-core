@@ -43,7 +43,8 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
           "s3:DeleteObject"
         ]
         Resource = [
-          "${aws_s3_bucket.audio_storage.arn}/*"
+          "${aws_s3_bucket.audio_storage.arn}/*",
+          "${aws_s3_bucket.news_audio_files.arn}/*"
         ]
       },
       {
@@ -52,7 +53,8 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.audio_storage.arn
+          aws_s3_bucket.audio_storage.arn,
+          aws_s3_bucket.news_audio_files.arn
         ]
       },
       {
@@ -99,7 +101,9 @@ resource "aws_iam_role_policy" "lambda_execution_policy" {
         ]
         Resource = [
           aws_dynamodb_table.job_status.arn,
-          "${aws_dynamodb_table.job_status.arn}/*"
+          "${aws_dynamodb_table.job_status.arn}/*",
+          aws_dynamodb_table.briefs.arn,
+          "${aws_dynamodb_table.briefs.arn}/*"
         ]
       }
     ]
@@ -185,6 +189,8 @@ resource "aws_lambda_function" "backend" {
       ENVIRONMENT              = var.environment
       CORS_ORIGINS             = jsonencode(var.cors_origins)
       AUDIO_BUCKET_NAME        = aws_s3_bucket.audio_storage.bucket
+      AUDIO_BUCKET             = aws_s3_bucket.news_audio_files.bucket
+      BRIEFS_TABLE             = aws_dynamodb_table.briefs.name
       TEMP_DIR                 = "/tmp"
       OPENAI_API_KEY_PARAMETER = aws_ssm_parameter.openai_api_key.name
       SQS_QUEUE_URL            = aws_sqs_queue.job_queue.url
