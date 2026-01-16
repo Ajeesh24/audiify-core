@@ -57,9 +57,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isConfigured, setIsConfigured] = useState(false);
   const [isDevelopment, setIsDevelopment] = useState(false);
 
-  // Initialize Amplify configuration
+  // Initialize Amplify configuration and check auth state
   useEffect(() => {
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
       try {
         const configured = isCognitoConfigured();
         const devMode = isDevelopmentMode();
@@ -75,15 +75,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             configured: true
           });
           Amplify.configure(config);
+
+          // Check for existing auth session after configuring Amplify
+          await refreshAuth();
         } else {
           console.log('⚠️ Cognito not configured - running in development mode');
+          setLoading(false);
         }
       } catch (error) {
         console.error('Failed to initialize Amplify:', error);
         setIsConfigured(false);
         setIsDevelopment(true);
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     initializeAuth();
@@ -156,10 +160,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    refreshAuth();
-  }, []);
 
   const handleSignUp = async (email: string, password: string, options?: any) => {
     if (!isConfigured) {
