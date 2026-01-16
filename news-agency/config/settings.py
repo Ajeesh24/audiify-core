@@ -38,7 +38,7 @@ OPENAI_SETTINGS = {
     'model': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),  # Cost-optimized model
     'max_tokens': int(os.getenv('OPENAI_MAX_TOKENS', '4000')),  # Increased for 1500-word briefs (needs ~2000 output tokens)
     'temperature': float(os.getenv('OPENAI_TEMPERATURE', '0.3')),
-    'timeout': int(os.getenv('OPENAI_TIMEOUT', '30'))
+    'timeout': int(os.getenv('OPENAI_TIMEOUT', '180'))  # 3 minutes for 1500-word brief generation with large context
 }
 
 # Audio Generation Settings (ElevenLabs or AWS Polly)
