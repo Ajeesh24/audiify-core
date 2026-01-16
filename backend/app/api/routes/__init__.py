@@ -519,13 +519,19 @@ async def get_latest_briefs(limit: int = 10):
                 # Generate presigned URL if audio exists
                 audio_url = None
                 if brief.get('audio_url'):
-                    # audio_url in DynamoDB is stored as s3://bucket/path or just the path
-                    if brief.get('audio_url', '').startswith('s3://'):
-                        s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "")
+                    original_audio_url = brief.get('audio_url', '')
+
+                    # Extract S3 key from different URL formats
+                    if original_audio_url.startswith('s3://'):
+                        # Format: s3://bucket/key
+                        s3_key = original_audio_url.replace(f"s3://{audio_bucket_name}/", "")
+                    elif original_audio_url.startswith('https://') and '.s3.' in original_audio_url:
+                        # Format: https://bucket.s3.region.amazonaws.com/key
+                        # Extract key after bucket domain
+                        s3_key = original_audio_url.split('.amazonaws.com/')[-1]
                     else:
-                        # Construct the correct S3 key matching audio_engine.py storage pattern
-                        # Pattern: audio/news-briefs/{date}/daily-brief-{category}-{date}.mp3
-                        s3_key = f"audio/news-briefs/{brief.get('date')}/daily-brief-{brief.get('category')}-{brief.get('date')}.mp3"
+                        # Assume it's already just the S3 key
+                        s3_key = original_audio_url
 
                     try:
                         audio_url = s3_client.generate_presigned_url(
