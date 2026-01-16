@@ -172,13 +172,18 @@ class Brief:
                 expression_values[placeholder] = value
 
         try:
-            response = self.table.update_item(
-                Key={'composite_key': composite_key},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_values,
-                ExpressionAttributeNames=expression_names if expression_names else None,
-                ReturnValues='ALL_NEW'
-            )
+            update_params = {
+                'Key': {'composite_key': composite_key},
+                'UpdateExpression': update_expression,
+                'ExpressionAttributeValues': expression_values,
+                'ReturnValues': 'ALL_NEW'
+            }
+
+            # Only include ExpressionAttributeNames if we have reserved keywords
+            if expression_names:
+                update_params['ExpressionAttributeNames'] = expression_names
+
+            response = self.table.update_item(**update_params)
             return response.get('Attributes', {})
         except Exception as e:
             print(f"Error updating brief {category}#{date}: {e}")

@@ -322,11 +322,11 @@ class BriefGenerationEngine:
 - Aim for podcast-quality depth and analysis
 
 **Brief Structure**:
-1. Hook/Introduction (150-200 words) - Set context and preview key stories
-2. Main stories with deep analysis (1100-1200 words) - Cover each story thoroughly with technical details
-3. Conclusion and outlook (200-250 words) - Synthesize trends and implications
+1. Hook/Introduction (100-150 words) - Set context and preview key stories
+2. Main stories with analysis (800-900 words) - Cover each story with technical details and context
+3. Conclusion and outlook (100-150 words) - Synthesize trends and implications
 
-IMPORTANT: Each main story should receive 150-200 words of coverage. Use the full article content to provide comprehensive analysis, technical details, and industry context. This is a podcast-quality brief, not a news summary.
+IMPORTANT: Each main story should receive 100-150 words of coverage. Use the full article content to provide meaningful analysis, technical details, and context. This is a concise yet informative podcast brief.
 
 Begin with something like "Good morning! Here are today's top {info_name_lower} stories..." and write as if speaking directly to the listener.
 

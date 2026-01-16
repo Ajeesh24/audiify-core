@@ -65,11 +65,11 @@ PIPELINE_SCHEDULE = {
 
 # Cost Optimization Settings
 COST_OPTIMIZATION = {
-    'target_daily_cost': 0.50,        # Target: < $0.50/day
+    'target_daily_cost': 999.99,      # Effectively disabled - no budget limit
     'max_articles_per_category': 50,   # Limit articles processed per category
-    'token_budget_per_day': 10000,    # 10K tokens/day budget
+    'token_budget_per_day': 999999,    # Effectively disabled
     'enable_token_tracking': True,
-    'fallback_to_free_tier': True,    # Use AWS Polly if ElevenLabs budget exceeded
+    'fallback_to_free_tier': False,    # Always use primary provider
     'cache_llm_responses': True,      # Cache responses for duplicate articles
     'cleanup_old_data_days': 7       # Keep data for 7 days max
 }
@@ -77,9 +77,9 @@ COST_OPTIMIZATION = {
 # Brief Generation Settings
 BRIEF_GENERATION = {
     'target_word_count': {
-        'general-tech': 1500,      # ~10 minutes (increased for richer content)
-        'ai-ml': 1500,            # ~10 minutes (increased for richer content)
-        'devops-platform': 1500   # ~10 minutes (increased for richer content)
+        'general-tech': 1100,      # ~7-8 minutes (reduced from 1500)
+        'ai-ml': 1100,            # ~7-8 minutes (reduced from 1500)
+        'devops-platform': 1100   # ~7-8 minutes (reduced from 1500)
     },
     'max_articles_per_brief': 8,   # Maximum articles to include in one brief
     'min_articles_per_brief': 3,   # Minimum articles needed to generate brief
@@ -134,11 +134,11 @@ RELIABILITY = {
 # Development/Testing Settings
 if ENVIRONMENT == 'development':
     # Override some settings for local development
-    COST_OPTIMIZATION['token_budget_per_day'] = 5000  # Increased budget for 1500-word briefs
+    COST_OPTIMIZATION['token_budget_per_day'] = 5000  # Increased budget for 1100-word briefs
     BRIEF_GENERATION['target_word_count'] = {
-        'general-tech': 1500,     # Full length for testing article extraction
-        'ai-ml': 1500,
-        'devops-platform': 1500
+        'general-tech': 1100,     # 7-8 minutes for testing article extraction
+        'ai-ml': 1100,
+        'devops-platform': 1100
     }
     COST_OPTIMIZATION['max_articles_per_category'] = 10  # Fewer articles in dev
 
