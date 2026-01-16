@@ -291,7 +291,7 @@ class BriefGenerationEngine:
         articles_text = "\n".join([
             f"**{i+1}. {escape_braces(article.get('title', 'No Title'))}** (Source: {escape_braces(article.get('source', 'Unknown'))})\n"
             f"{'Full Content' if article.get('content_extracted') else 'Summary'}: {escape_braces(article.get('full_content') or article.get('summary') or 'No content available')}\n"
-            f"Relevance Score: {escape_braces(article.get('final_ranking_score') or article.get('relevance_score') or 'N/A'))}/10\n"
+            f"Relevance Score: {escape_braces(article.get('final_ranking_score') or article.get('relevance_score') or 'N/A')}/10\n"
             for i, article in enumerate(articles)
         ])
 
