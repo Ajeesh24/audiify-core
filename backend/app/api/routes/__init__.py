@@ -524,7 +524,11 @@ async def get_latest_briefs(limit: int = 10):
                     try:
                         audio_url = s3_client.generate_presigned_url(
                             'get_object',
-                            Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                            Params={
+                                'Bucket': audio_bucket_name,
+                                'Key': s3_key,
+                                'ResponseContentType': 'audio/mpeg'
+                            },
                             ExpiresIn=3600
                         )
                     except Exception as e:
@@ -603,7 +607,11 @@ async def get_category_briefs(category: str, limit: int = 10, offset: int = 0):
                 try:
                     audio_url = s3_client.generate_presigned_url(
                         'get_object',
-                        Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                        Params={
+                            'Bucket': audio_bucket_name,
+                            'Key': s3_key,
+                            'ResponseContentType': 'audio/mpeg'
+                        },
                         ExpiresIn=3600
                     )
                 except Exception as e:
@@ -677,7 +685,11 @@ async def get_briefs_by_date(date: str):
                 try:
                     audio_url = s3_client.generate_presigned_url(
                         'get_object',
-                        Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                        Params={
+                            'Bucket': audio_bucket_name,
+                            'Key': s3_key,
+                            'ResponseContentType': 'audio/mpeg'
+                        },
                         ExpiresIn=3600
                     )
                 except Exception as e:

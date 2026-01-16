@@ -360,7 +360,11 @@ class TTSService:
                     # Generate presigned URL for secure access
                     presigned_url = self.s3_client.generate_presigned_url(
                         'get_object',
-                        Params={'Bucket': self.bucket_name, 'Key': s3_key},
+                        Params={
+                            'Bucket': self.bucket_name,
+                            'Key': s3_key,
+                            'ResponseContentType': 'audio/mpeg'
+                        },
                         ExpiresIn=expires_in
                     )
 
