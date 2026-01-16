@@ -202,7 +202,10 @@ class Brief:
         """Update brief generation statistics"""
         current_brief = self.get_brief(category, date)
         if current_brief:
-            current_stats = current_brief.get('generation_stats', {})
+            # Handle case where generation_stats might be None
+            current_stats = current_brief.get('generation_stats')
+            if current_stats is None or not isinstance(current_stats, dict):
+                current_stats = {}
             current_stats.update(stats)
             return self.update_brief(category, date, generation_stats=current_stats)
         return {}

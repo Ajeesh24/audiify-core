@@ -281,11 +281,17 @@ class BriefGenerationEngine:
         target_words = BRIEF_GENERATION['target_word_count'][category]
         info_name_lower = info['name'].lower()
 
-        # Format articles for prompt
+        # Format articles for prompt - escape braces in content to prevent format string errors
+        def escape_braces(text):
+            """Escape curly braces to prevent format string errors"""
+            if text is None:
+                return "N/A"
+            return str(text).replace('{', '{{').replace('}', '}}')
+
         articles_text = "\n".join([
-            f"**{i+1}. {article['title']}** (Source: {article['source']})\n"
-            f"{'Full Content' if article.get('content_extracted') else 'Summary'}: {article.get('full_content', article.get('summary', 'No content available'))}\n"
-            f"Relevance Score: {article.get('final_ranking_score', article.get('relevance_score', 'N/A'))}/10\n"
+            f"**{i+1}. {escape_braces(article.get('title', 'No Title'))}** (Source: {escape_braces(article.get('source', 'Unknown'))})\n"
+            f"{'Full Content' if article.get('content_extracted') else 'Summary'}: {escape_braces(article.get('full_content') or article.get('summary') or 'No content available')}\n"
+            f"Relevance Score: {escape_braces(article.get('final_ranking_score') or article.get('relevance_score') or 'N/A'))}/10\n"
             for i, article in enumerate(articles)
         ])
 

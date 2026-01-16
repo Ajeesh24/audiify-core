@@ -110,18 +110,29 @@ class LLMService:
 
 ⚠️  ABSOLUTE CRITICAL REQUIREMENT: You MUST write EXACTLY {target_word_count} words (±50 words). This is MANDATORY for proper audio timing. DO NOT write short summaries.
 
-WORD COUNT ENFORCEMENT:
+🚨 WORD COUNT IS THE TOP PRIORITY 🚨
+- If you write less than {target_word_count - 50} words, the audio will be too short and UNUSABLE
 - Target: {target_word_count} words
-- Minimum: {target_word_count - 50} words
+- Minimum: {target_word_count - 50} words (HARD MINIMUM - anything less is REJECTED)
 - Maximum: {target_word_count + 50} words
-- NO EXCEPTIONS - This determines audio length
+- NO EXCEPTIONS - Count every single word you write
+
+STRATEGY TO REACH {target_word_count} WORDS:
+1. Write a comprehensive 150-200 word introduction setting context
+2. Cover each story in depth (150-250 words per story minimum)
+3. Include technical details, implications, and industry context
+4. Add analysis and expert perspective for each story
+5. Write a thorough 200-250 word conclusion with outlook
+6. If still under word count, add more depth to each story
 
 You must:
 1. Use ALL the full article content provided (not just headlines or summaries)
 2. Provide comprehensive coverage of each story with technical details
 3. Write detailed analysis, not brief summaries - this is PODCAST-LENGTH content
-4. Each story should receive 150-200 words minimum of coverage
-5. Write {target_word_count} words total - count every single word
+4. Each story should receive 150-250 words minimum of coverage
+5. Include background, context, technical details, and future implications
+6. Write conversationally but thoroughly - imagine explaining to an intelligent colleague
+7. DO NOT SUMMARIZE - write as if you have unlimited time to explain thoroughly
 
 FAILURE TO MEET WORD COUNT WILL RESULT IN UNUSABLE AUDIO. Write detailed, comprehensive analysis that reaches exactly {target_word_count} words."""),
                 HumanMessage(content=formatted_prompt)
@@ -142,9 +153,17 @@ FAILURE TO MEET WORD COUNT WILL RESULT IN UNUSABLE AUDIO. Write detailed, compre
 
             # Enhanced logging for debugging word count issues
             logger.info(f"Brief generated for {category}: {word_count} words (target: {target_word_count})")
+
+            # Warn if significantly off target
             if word_count < target_word_count - 100:
-                logger.warning(f"Brief significantly under target: {word_count}/{target_word_count} words")
+                logger.warning(f"⚠️  Brief significantly under target: {word_count}/{target_word_count} words (short by {target_word_count - word_count} words)")
                 logger.debug(f"Brief preview: {brief_content[:200]}...")
+            elif word_count < target_word_count - 50:
+                logger.warning(f"Brief slightly under target: {word_count}/{target_word_count} words")
+            elif word_count > target_word_count + 100:
+                logger.warning(f"Brief significantly over target: {word_count}/{target_word_count} words (over by {word_count - target_word_count} words)")
+            else:
+                logger.info(f"✓ Brief word count within acceptable range: {word_count}/{target_word_count} words")
 
             return result
 
