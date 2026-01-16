@@ -11,7 +11,7 @@ import CreateAudioModal from '@/components/CreateAudioModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AudioProvider, useAudioContext } from '@/contexts/AudioContext';
 import { AuthForm } from '@/components/AuthForm';
-import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse } from '@/services/api';
+import { audifyApi, setAuthTokenGetter, type ArticleProcessRequest, type ProcessArticleResponse, type ArticleContent, type AudioResponse, type DailyBrief } from '@/services/api';
 
 function AuthenticatedApp() {
   const { user, loading, isAuthenticated, getAccessToken, signOut, isConfigured, isDevelopment } = useAuth();
@@ -25,6 +25,17 @@ function AuthenticatedApp() {
   // Recent articles state
   const [recentArticles, setRecentArticles] = useState<any[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(true);
+
+  // Daily briefs state with pagination per category
+  const [briefsState, setBriefsState] = useState<{
+    'general-tech': { items: DailyBrief[]; offset: number; hasMore: boolean; loading: boolean };
+    'ai-ml': { items: DailyBrief[]; offset: number; hasMore: boolean; loading: boolean };
+    'devops-platform': { items: DailyBrief[]; offset: number; hasMore: boolean; loading: boolean };
+  }>({
+    'general-tech': { items: [], offset: 0, hasMore: true, loading: false },
+    'ai-ml': { items: [], offset: 0, hasMore: true, loading: false },
+    'devops-platform': { items: [], offset: 0, hasMore: true, loading: false }
+  });
 
   // Create Audio Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -74,11 +85,96 @@ function AuthenticatedApp() {
     }
   };
 
+  // Fetch initial briefs for all categories
+  const fetchInitialBriefs = async () => {
+    try {
+      console.log('Fetching initial briefs...');
+      const response = await audifyApi.getLatestBriefs(10);
+
+      // Update state with briefs from each category
+      setBriefsState({
+        'general-tech': {
+          items: response['general-tech'] || [],
+          offset: (response['general-tech'] || []).length,
+          hasMore: (response['general-tech'] || []).length === 10,
+          loading: false
+        },
+        'ai-ml': {
+          items: response['ai-ml'] || [],
+          offset: (response['ai-ml'] || []).length,
+          hasMore: (response['ai-ml'] || []).length === 10,
+          loading: false
+        },
+        'devops-platform': {
+          items: response['devops-platform'] || [],
+          offset: (response['devops-platform'] || []).length,
+          hasMore: (response['devops-platform'] || []).length === 10,
+          loading: false
+        }
+      });
+
+      console.log('Briefs fetched:', {
+        'general-tech': response['general-tech']?.length || 0,
+        'ai-ml': response['ai-ml']?.length || 0,
+        'devops-platform': response['devops-platform']?.length || 0
+      });
+    } catch (err) {
+      console.error('Failed to fetch briefs:', err);
+    }
+  };
+
+  // Load more briefs for a specific category
+  const loadMoreBriefs = async (category: 'general-tech' | 'ai-ml' | 'devops-platform') => {
+    const currentState = briefsState[category];
+
+    // Don't load if already loading or no more items
+    if (currentState.loading || !currentState.hasMore) {
+      return;
+    }
+
+    try {
+      console.log(`Loading more briefs for ${category}, offset: ${currentState.offset}`);
+
+      // Set loading state
+      setBriefsState(prev => ({
+        ...prev,
+        [category]: { ...prev[category], loading: true }
+      }));
+
+      const response = await audifyApi.getBriefsByCategory(category, currentState.offset, 10);
+
+      // Append new briefs to existing ones
+      setBriefsState(prev => ({
+        ...prev,
+        [category]: {
+          items: [...prev[category].items, ...response.briefs],
+          offset: response.next_offset,
+          hasMore: response.has_more,
+          loading: false
+        }
+      }));
+
+      console.log(`Loaded ${response.briefs.length} more briefs for ${category}`);
+    } catch (err) {
+      console.error(`Failed to load more briefs for ${category}:`, err);
+      // Reset loading state on error
+      setBriefsState(prev => ({
+        ...prev,
+        [category]: { ...prev[category], loading: false }
+      }));
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated && isConfigured) {
       fetchRecentArticles();
     }
   }, [isAuthenticated, isConfigured, refreshTrigger]);
+
+  // Fetch briefs on mount (public, no auth needed)
+  useEffect(() => {
+    fetchInitialBriefs();
+  }, []);
 
   // Dynamic background based on system theme
   const getThemeBackground = () => {
@@ -106,6 +202,21 @@ function AuthenticatedApp() {
         </>
       );
     }
+  };
+
+  // Convert briefs to compact card format for HorizontalSection
+  const convertBriefsToCards = (briefs: DailyBrief[], iconType: 'tech' | 'ai' | 'devops') => {
+    return briefs.map((brief) => ({
+      id: brief.brief_id,
+      title: brief.title,
+      subtitle: `${Math.floor((brief.actual_duration || brief.estimated_duration || 0) / 60)} min`,
+      duration: brief.actual_duration || brief.estimated_duration,
+      status: 'ready' as const,
+      icon: iconType,
+      type: 'brief' as const,
+      date: brief.date,
+      briefData: brief // Store original brief data for playback
+    }));
   };
 
   // Convert recent articles to compact card format
@@ -138,102 +249,10 @@ function AuthenticatedApp() {
     });
   };
 
-  // Mock data for horizontal sections
-  const techBriefItems = [
-    {
-      id: 'tech-today',
-      title: 'Today\'s Tech Brief',
-      subtitle: 'Latest tech news',
-      status: 'empty' as const,
-      icon: 'tech',
-      type: 'brief' as const,
-      date: new Date().toISOString()
-    },
-    {
-      id: 'tech-yesterday',
-      title: 'Yesterday\'s Brief',
-      subtitle: 'Tech roundup',
-      status: 'ready' as const,
-      duration: 420,
-      icon: 'tech',
-      type: 'brief' as const,
-      date: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      id: 'tech-jan8',
-      title: 'Jan 8 Brief',
-      subtitle: 'CES highlights',
-      status: 'ready' as const,
-      duration: 380,
-      icon: 'tech',
-      type: 'brief' as const,
-      date: '2026-01-08'
-    }
-  ];
-
-  const aimlBriefItems = [
-    {
-      id: 'aiml-today',
-      title: 'Today\'s AI Brief',
-      subtitle: 'AI & ML updates',
-      status: 'empty' as const,
-      icon: 'ai',
-      type: 'brief' as const,
-      date: new Date().toISOString()
-    },
-    {
-      id: 'aiml-yesterday',
-      title: 'Yesterday\'s AI',
-      subtitle: 'Model releases',
-      status: 'ready' as const,
-      duration: 310,
-      icon: 'ai',
-      type: 'brief' as const,
-      date: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      id: 'aiml-jan8',
-      title: 'Jan 8 AI Brief',
-      subtitle: 'OpenAI updates',
-      status: 'ready' as const,
-      duration: 290,
-      icon: 'ai',
-      type: 'brief' as const,
-      date: '2026-01-08'
-    }
-  ];
-
-  const devopsBriefItems = [
-    {
-      id: 'devops-today',
-      title: 'Today\'s DevOps',
-      subtitle: 'Platform updates',
-      status: 'empty' as const,
-      icon: 'devops',
-      type: 'brief' as const,
-      date: new Date().toISOString()
-    },
-    {
-      id: 'devops-yesterday',
-      title: 'Yesterday\'s Platform',
-      subtitle: 'Cloud updates',
-      status: 'ready' as const,
-      duration: 240,
-      icon: 'devops',
-      type: 'brief' as const,
-      date: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      id: 'devops-jan8',
-      title: 'Jan 8 DevOps',
-      subtitle: 'Kubernetes news',
-      status: 'ready' as const,
-      duration: 200,
-      icon: 'devops',
-      type: 'brief' as const,
-      date: '2026-01-08'
-    }
-  ];
+  // Brief items for each category from real data
+  const techBriefItems = convertBriefsToCards(briefsState['general-tech'].items, 'tech');
+  const aimlBriefItems = convertBriefsToCards(briefsState['ai-ml'].items, 'ai');
+  const devopsBriefItems = convertBriefsToCards(briefsState['devops-platform'].items, 'devops');
 
   const yourAudioItems = [
     {
@@ -389,12 +408,114 @@ function AuthenticatedApp() {
 
         return;
       } catch (error) {
-        console.error('❌ Failed to load audio:', error);
+        console.log('❌ Failed to load audio:', error);
       }
     }
 
-    // TODO: Implement audio playback for briefings and other articles
-    console.log('Playing audio:', audioId);
+    // Check if this is a brief (search all brief categories)
+    const allBriefs = [
+      ...briefsState['general-tech'].items,
+      ...briefsState['ai-ml'].items,
+      ...briefsState['devops-platform'].items
+    ];
+    const brief = allBriefs.find(b => b.brief_id === audioId);
+
+    if (brief && brief.audio_url) {
+      try {
+        console.log('🎵 Loading brief audio for:', brief.title);
+
+        // If already playing, toggle
+        if (audioContext.currentAudio?.audio_id === brief.brief_id && audioContext.audioRef.current) {
+          if (audioContext.isPlaying) {
+            audioContext.pause();
+          } else {
+            await audioContext.play();
+          }
+          return;
+        }
+
+        // Create AudioResponse object for the brief
+        const audioResponse: AudioResponse = {
+          audio_id: brief.brief_id,
+          url: brief.audio_url, // This is already a presigned S3 URL
+          size: brief.audio_size,
+          storage: 's3',
+          duration: brief.actual_duration || brief.estimated_duration,
+          s3_key: undefined,
+          expires_at: undefined
+        };
+
+        // Set up the audio context (shows player immediately)
+        audioContext.setCurrentAudio(audioResponse, brief.title, false);
+
+        // Load and play the audio
+        if (audioContext.audioRef.current && brief.audio_url) {
+          const audio = audioContext.audioRef.current;
+
+          // Stop any current playback
+          audio.pause();
+          audio.currentTime = 0;
+
+          // Event handlers
+          const onLoadedData = () => {
+            console.log('✅ Brief audio loaded, attempting to play');
+            audio.play().then(() => {
+              console.log('▶️ Brief audio started playing');
+            }).catch(error => {
+              console.log('🎵 Autoplay prevented, user can click play button');
+            });
+          };
+
+          const onLoadedMetadata = () => {
+            audioContext.setDuration(audio.duration);
+          };
+
+          const onTimeUpdate = () => {
+            audioContext.setCurrentTime(audio.currentTime);
+          };
+
+          const onPlay = () => {
+            audioContext.setIsPlaying(true);
+          };
+
+          const onPause = () => {
+            audioContext.setIsPlaying(false);
+          };
+
+          const onEnded = () => {
+            audioContext.setIsPlaying(false);
+          };
+
+          // Remove existing listeners
+          audio.removeEventListener('loadeddata', onLoadedData);
+          audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+          audio.removeEventListener('timeupdate', onTimeUpdate);
+          audio.removeEventListener('play', onPlay);
+          audio.removeEventListener('pause', onPause);
+          audio.removeEventListener('ended', onEnded);
+
+          // Add event listeners
+          audio.addEventListener('loadeddata', onLoadedData);
+          audio.addEventListener('loadedmetadata', onLoadedMetadata);
+          audio.addEventListener('timeupdate', onTimeUpdate);
+          audio.addEventListener('play', onPlay);
+          audio.addEventListener('pause', onPause);
+          audio.addEventListener('ended', onEnded);
+
+          // Load the audio from S3
+          console.log('📁 Loading brief audio from S3...');
+          audio.src = brief.audio_url;
+          audio.load();
+        }
+
+        return;
+      } catch (error) {
+        console.error('❌ Failed to load brief audio:', error);
+      }
+    }
+
+    // If not found, log it
+    console.log('Audio not found:', audioId);
   };
 
   const handleAuthRequired = (trigger: { type: string; id: string }) => {
@@ -787,6 +908,9 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          onLoadMore={() => loadMoreBriefs('general-tech')}
+          hasMore={briefsState['general-tech'].hasMore}
+          loading={briefsState['general-tech'].loading}
           isDarkMode={isDarkMode}
         />
 
@@ -798,6 +922,9 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          onLoadMore={() => loadMoreBriefs('ai-ml')}
+          hasMore={briefsState['ai-ml'].hasMore}
+          loading={briefsState['ai-ml'].loading}
           isDarkMode={isDarkMode}
         />
 
@@ -809,6 +936,9 @@ function AuthenticatedApp() {
           isAuthenticated={isAuthenticated}
           onPlay={handleAudioPlay}
           onAuthRequired={handleAuthRequired}
+          onLoadMore={() => loadMoreBriefs('devops-platform')}
+          hasMore={briefsState['devops-platform'].hasMore}
+          loading={briefsState['devops-platform'].loading}
           isDarkMode={isDarkMode}
         />
 

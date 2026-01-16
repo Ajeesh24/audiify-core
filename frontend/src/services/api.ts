@@ -184,6 +184,43 @@ export interface MyArticlesResponse {
   };
 }
 
+export interface DailyBrief {
+  brief_id: string;
+  category: string;
+  date: string;
+  title: string;
+  content?: string;
+  word_count: number;
+  estimated_duration?: number;
+  actual_duration?: number;
+  status: string;
+  audio_url?: string;
+  audio_size?: number;
+  articles_used: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyBriefsResponse {
+  briefs: DailyBrief[];
+  count: number;
+  date?: string;
+}
+
+export interface CategoryBriefsResponse {
+  briefs: DailyBrief[];
+  has_more: boolean;
+  next_offset: number;
+  category: string;
+  count: number;
+}
+
+export interface LatestBriefsResponse {
+  "general-tech": DailyBrief[];
+  "ai-ml": DailyBrief[];
+  "devops-platform": DailyBrief[];
+}
+
 // API Functions
 export const audifyApi = {
   // Health check
@@ -312,6 +349,36 @@ export const audifyApi = {
       text_length: textLength,
       mode,
     });
+    return response.data;
+  },
+
+  // Get latest daily briefs (public endpoint) - returns 10 briefs per category
+  async getLatestBriefs(limit: number = 10): Promise<LatestBriefsResponse> {
+    const response = await apiClient.get(`/briefs/latest?limit=${limit}`);
+    return response.data;
+  },
+
+  // Get paginated briefs for a specific category (public endpoint)
+  async getBriefsByCategory(
+    category: string,
+    offset: number = 0,
+    limit: number = 10
+  ): Promise<CategoryBriefsResponse> {
+    const response = await apiClient.get(
+      `/briefs/category/${category}?offset=${offset}&limit=${limit}`
+    );
+    return response.data;
+  },
+
+  // Get briefs by date (public endpoint) - kept for backwards compatibility
+  async getBriefsByDate(date: string): Promise<DailyBriefsResponse> {
+    const response = await apiClient.get(`/briefs/${date}`);
+    return response.data;
+  },
+
+  // Get a specific brief by category and date (public endpoint) - kept for backwards compatibility
+  async getBriefByCategoryAndDate(category: string, date: string): Promise<DailyBrief> {
+    const response = await apiClient.get(`/briefs/${category}/${date}`);
     return response.data;
   },
 };

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import uuid
 import os
+import boto3
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
@@ -16,7 +17,9 @@ from app.models import (
     ErrorResponse,
     HealthResponse,
     JobStartResponse,
-    JobStatusResponse
+    JobStatusResponse,
+    DailyBriefResponse,
+    DailyBriefsSummaryResponse
 )
 from app.services.extractor import ArticleExtractor
 from app.services.llm_service import LLMService
@@ -36,6 +39,15 @@ llm_service = LLMService()
 tts_service = TTSService()
 job_storage = JobStorage()  # DynamoDB-based job storage
 audio_metadata_storage = AudioMetadataStorage()  # DynamoDB-based audio metadata storage
+
+# Initialize DynamoDB client for news briefs
+dynamodb = boto3.resource('dynamodb')
+briefs_table_name = os.getenv('BRIEFS_TABLE', 'audifyy-briefs-dev')
+briefs_table = dynamodb.Table(briefs_table_name)
+
+# Initialize S3 client for generating presigned URLs
+s3_client = boto3.client('s3')
+audio_bucket_name = os.getenv('AUDIO_BUCKET', 'audifyy-news-audio-dev')
 
 async def process_article_background(job_id: str, request: ArticleProcessRequest, user_id: str, job_storage: JobStorage):
     """Background task to process article asynchronously."""
@@ -472,3 +484,293 @@ async def estimate_processing_cost(request: dict):
         "mode": mode,
         "text_length": text_length
     }
+
+
+@router.get("/briefs/latest")
+async def get_latest_briefs(limit: int = 10):
+    """
+    Get the latest daily briefs for all categories.
+    Returns 'limit' briefs per category, grouped by category.
+    Public endpoint - no authentication required.
+    """
+    try:
+        from boto3.dynamodb.conditions import Key
+
+        categories = ["general-tech", "ai-ml", "devops-platform"]
+        result = {}
+
+        for category in categories:
+            # Query briefs for this category, sorted by date DESC
+            response = briefs_table.query(
+                IndexName='category-date-index',
+                KeyConditionExpression=Key('category').eq(category),
+                ScanIndexForward=False,  # Descending order (newest first)
+                Limit=limit
+            )
+
+            briefs_data = response.get('Items', [])
+            briefs = []
+
+            for brief in briefs_data:
+                # Only include briefs with ready status
+                if brief.get('status') != 'ready':
+                    continue
+
+                # Generate presigned URL if audio exists
+                audio_url = None
+                if brief.get('audio_url'):
+                    s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+
+                    try:
+                        audio_url = s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                            ExpiresIn=3600
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to generate presigned URL for {s3_key}: {str(e)}")
+
+                # Format the brief title as "Brief - DD-MM-YY"
+                date_obj = datetime.strptime(brief['date'], '%Y-%m-%d')
+                title = f"Brief - {date_obj.strftime('%d-%m-%y')}"
+
+                briefs.append({
+                    'brief_id': brief['brief_id'],
+                    'category': brief['category'],
+                    'date': brief['date'],
+                    'title': title,
+                    'word_count': brief.get('word_count', 0),
+                    'estimated_duration': brief.get('estimated_duration'),
+                    'actual_duration': brief.get('actual_duration'),
+                    'status': brief.get('status', 'generated'),
+                    'audio_url': audio_url,
+                    'audio_size': brief.get('audio_size'),
+                    'articles_used': brief.get('articles_used', []),
+                    'created_at': brief.get('created_at', ''),
+                    'updated_at': brief.get('updated_at', '')
+                })
+
+            result[category] = briefs
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to fetch latest briefs: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch briefs")
+
+
+@router.get("/briefs/category/{category}")
+async def get_category_briefs(category: str, limit: int = 10, offset: int = 0):
+    """
+    Get paginated briefs for a specific category.
+    Public endpoint - no authentication required.
+    """
+    try:
+        from boto3.dynamodb.conditions import Key
+
+        # Validate category
+        valid_categories = ["general-tech", "ai-ml", "devops-platform"]
+        if category not in valid_categories:
+            raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {', '.join(valid_categories)}")
+
+        # Query briefs for this category, sorted by date DESC
+        # Note: DynamoDB doesn't support offset directly, so we'll fetch offset + limit and slice
+        fetch_limit = offset + limit + 1  # +1 to check if there are more
+
+        response = briefs_table.query(
+            IndexName='category-date-index',
+            KeyConditionExpression=Key('category').eq(category),
+            ScanIndexForward=False,  # Descending order (newest first)
+            Limit=fetch_limit
+        )
+
+        all_items = response.get('Items', [])
+
+        # Filter only ready briefs
+        ready_items = [item for item in all_items if item.get('status') == 'ready']
+
+        # Slice to get the requested page
+        briefs_data = ready_items[offset:offset + limit]
+        has_more = len(ready_items) > offset + limit
+
+        briefs = []
+        for brief in briefs_data:
+            # Generate presigned URL if audio exists
+            audio_url = None
+            if brief.get('audio_url'):
+                s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+
+                try:
+                    audio_url = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                        ExpiresIn=3600
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate presigned URL for {s3_key}: {str(e)}")
+
+            # Format the brief title as "Brief - DD-MM-YY"
+            date_obj = datetime.strptime(brief['date'], '%Y-%m-%d')
+            title = f"Brief - {date_obj.strftime('%d-%m-%y')}"
+
+            briefs.append({
+                'brief_id': brief['brief_id'],
+                'category': brief['category'],
+                'date': brief['date'],
+                'title': title,
+                'word_count': brief.get('word_count', 0),
+                'estimated_duration': brief.get('estimated_duration'),
+                'actual_duration': brief.get('actual_duration'),
+                'status': brief.get('status', 'generated'),
+                'audio_url': audio_url,
+                'audio_size': brief.get('audio_size'),
+                'articles_used': brief.get('articles_used', []),
+                'created_at': brief.get('created_at', ''),
+                'updated_at': brief.get('updated_at', '')
+            })
+
+        return {
+            'briefs': briefs,
+            'has_more': has_more,
+            'next_offset': offset + limit,
+            'category': category,
+            'count': len(briefs)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch briefs for category {category}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch briefs")
+
+
+@router.get("/briefs/{date}")
+async def get_briefs_by_date(date: str):
+    """
+    Get all briefs for a specific date (format: YYYY-MM-DD).
+    Public endpoint - no authentication required.
+    """
+    try:
+        # Validate date format
+        try:
+            datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+        # Query briefs for the specified date
+        from boto3.dynamodb.conditions import Key
+        response = briefs_table.query(
+            IndexName='date-index',
+            KeyConditionExpression=Key('date').eq(date)
+        )
+
+        briefs_data = response.get('Items', [])
+
+        # Process and return briefs
+        briefs = []
+        for brief in briefs_data:
+            # Generate presigned URL if audio exists
+            audio_url = None
+            if brief.get('audio_url') and brief.get('status') == 'ready':
+                s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+
+                try:
+                    audio_url = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                        ExpiresIn=3600
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate presigned URL for {s3_key}: {str(e)}")
+
+            # Format the brief title as "Brief - DD-MM-YY"
+            date_obj = datetime.strptime(brief['date'], '%Y-%m-%d')
+            title = f"Brief - {date_obj.strftime('%d-%m-%y')}"
+
+            briefs.append(DailyBriefResponse(
+                brief_id=brief['brief_id'],
+                category=brief['category'],
+                date=brief['date'],
+                title=title,
+                content=brief.get('content'),
+                word_count=brief.get('word_count', 0),
+                estimated_duration=brief.get('estimated_duration'),
+                actual_duration=brief.get('actual_duration'),
+                status=brief.get('status', 'generated'),
+                audio_url=audio_url,
+                audio_size=brief.get('audio_size'),
+                articles_used=brief.get('articles_used', []),
+                created_at=brief.get('created_at', ''),
+                updated_at=brief.get('updated_at', '')
+            ))
+
+        return {"briefs": briefs, "date": date, "count": len(briefs)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch briefs for date {date}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch briefs")
+
+
+@router.get("/briefs/{category}/{date}")
+async def get_brief_by_category_and_date(category: str, date: str):
+    """
+    Get a specific brief by category and date.
+    Public endpoint - no authentication required.
+    """
+    try:
+        # Validate date format
+        try:
+            datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+        # Query the brief
+        composite_key = f"{category}#{date}"
+        response = briefs_table.get_item(Key={'composite_key': composite_key})
+
+        brief = response.get('Item')
+        if not brief:
+            raise HTTPException(status_code=404, detail=f"No brief found for category '{category}' on {date}")
+
+        # Generate presigned URL if audio exists
+        audio_url = None
+        if brief.get('audio_url') and brief.get('status') == 'ready':
+            s3_key = brief.get('audio_url').replace(f"s3://{audio_bucket_name}/", "") if brief.get('audio_url', '').startswith('s3://') else f"audio/{brief.get('category')}-{brief.get('date')}.mp3"
+
+            try:
+                audio_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': audio_bucket_name, 'Key': s3_key},
+                    ExpiresIn=3600
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate presigned URL for {s3_key}: {str(e)}")
+
+        # Format the brief title as "Brief - DD-MM-YY"
+        date_obj = datetime.strptime(brief['date'], '%Y-%m-%d')
+        title = f"Brief - {date_obj.strftime('%d-%m-%y')}"
+
+        return DailyBriefResponse(
+            brief_id=brief['brief_id'],
+            category=brief['category'],
+            date=brief['date'],
+            title=title,
+            content=brief.get('content'),
+            word_count=brief.get('word_count', 0),
+            estimated_duration=brief.get('estimated_duration'),
+            actual_duration=brief.get('actual_duration'),
+            status=brief.get('status', 'generated'),
+            audio_url=audio_url,
+            audio_size=brief.get('audio_size'),
+            articles_used=brief.get('articles_used', []),
+            created_at=brief.get('created_at', ''),
+            updated_at=brief.get('updated_at', '')
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch brief for {category} on {date}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch brief")

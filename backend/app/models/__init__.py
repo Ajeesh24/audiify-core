@@ -84,3 +84,31 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     version: str = Field(..., description="API version")
     timestamp: str = Field(..., description="Current timestamp")
+
+
+class DailyBriefResponse(BaseModel):
+    """Daily brief response model."""
+    brief_id: str = Field(..., description="Unique brief identifier")
+    category: str = Field(..., description="Brief category (general-tech, ai-ml, devops-platform)")
+    date: str = Field(..., description="Brief date in YYYY-MM-DD format")
+    title: str = Field(..., description="Brief title")
+    content: Optional[str] = Field(None, description="Brief text content")
+    word_count: int = Field(..., description="Word count")
+    estimated_duration: Optional[int] = Field(None, description="Estimated audio duration in seconds")
+    actual_duration: Optional[int] = Field(None, description="Actual audio duration in seconds")
+    status: str = Field(..., description="Brief status (generated, ready)")
+    audio_url: Optional[str] = Field(None, description="S3 presigned URL for audio file")
+    audio_size: Optional[int] = Field(None, description="Audio file size in bytes")
+    articles_used: List[str] = Field(default_factory=list, description="List of article URLs used in this brief")
+    created_at: str = Field(..., description="Creation timestamp")
+    updated_at: str = Field(..., description="Last update timestamp")
+
+
+class DailyBriefsSummaryResponse(BaseModel):
+    """Summary of all daily briefs for a specific date."""
+    date: str = Field(..., description="Brief date in YYYY-MM-DD format")
+    total_briefs: int = Field(..., description="Total number of briefs")
+    ready_briefs: int = Field(..., description="Number of ready briefs")
+    categories: Dict[str, Any] = Field(..., description="Brief details by category")
+    total_duration: int = Field(0, description="Total audio duration in seconds")
+    total_articles_used: int = Field(0, description="Total articles used across all briefs")

@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Button } from './ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CompactAudioCard from './CompactAudioCard';
 
@@ -23,6 +23,9 @@ interface HorizontalSectionProps {
   isAuthenticated: boolean;
   onPlay: (id: string) => void;
   onAuthRequired?: (trigger: { type: string; id: string }) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loading?: boolean;
   showNavigationButtons?: boolean;
   isDarkMode?: boolean;
 }
@@ -34,6 +37,9 @@ export default function HorizontalSection({
   isAuthenticated,
   onPlay,
   onAuthRequired,
+  onLoadMore,
+  hasMore = false,
+  loading = false,
   showNavigationButtons = true,
   isDarkMode = true
 }: HorizontalSectionProps) {
@@ -50,6 +56,26 @@ export default function HorizontalSection({
       scrollContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' });
     }
   };
+
+  // Infinite scroll detection
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !onLoadMore || !hasMore || loading) return;
+
+    const handleScroll = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = container;
+      // Trigger load more when user scrolls to within 300px of the end
+      const nearEnd = scrollLeft + clientWidth >= scrollWidth - 300;
+
+      if (nearEnd && !loading && hasMore) {
+        console.log('Near end of scroll, loading more...');
+        onLoadMore();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [onLoadMore, hasMore, loading]);
 
   return (
     <motion.div
@@ -134,6 +160,17 @@ export default function HorizontalSection({
               isDarkMode={isDarkMode}
             />
           ))}
+
+          {/* Loading indicator */}
+          {loading && (
+            <div className={`flex-shrink-0 w-32 h-48 rounded-lg flex items-center justify-center ${
+              isDarkMode ? 'bg-slate-800/40' : 'bg-slate-200/40'
+            }`}>
+              <Loader2 className={`w-6 h-6 animate-spin ${
+                isDarkMode ? 'text-slate-400' : 'text-slate-500'
+              }`} />
+            </div>
+          )}
 
           {/* Add some padding to the end */}
           <div className="flex-shrink-0 w-4" />
