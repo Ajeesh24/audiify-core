@@ -7,11 +7,10 @@ from newspaper import Article
 from bs4 import BeautifulSoup
 import requests
 import logging
-import ssl
 import urllib3
 import time
 
-# Disable SSL warnings for corporate environments
+# Disable SSL warnings for corporate environments with SSL inspection
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
@@ -24,10 +23,13 @@ class ArticleExtractor:
         """Initialize the article extractor."""
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
         })
-        # Disable SSL verification for corporate environments
-        self.session.verify = False
 
     def extract_article_sync(self, url: str) -> Tuple[str, str, bool]:
         """
@@ -43,8 +45,7 @@ class ArticleExtractor:
             # First try with newspaper3k (fastest and most reliable)
             article = Article(url)
 
-            # Configure requests session to disable SSL verification
-            article.config.requests_params = {'verify': False}
+            # Configure article parsing
             article.config.http_success_only = False
 
             article.download()
@@ -83,7 +84,7 @@ class ArticleExtractor:
             # Add delay to be respectful to servers
             time.sleep(0.5)
 
-            response = self.session.get(url, headers=headers, timeout=30, verify=False)
+            response = self.session.get(url, headers=headers, timeout=30)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -203,8 +204,7 @@ class ArticleExtractor:
             # First try with newspaper3k (fastest and most reliable)
             article = Article(url)
 
-            # Configure requests session to disable SSL verification
-            article.config.requests_params = {'verify': False}
+            # Configure article parsing
             article.config.http_success_only = False
 
             article.download()
@@ -243,7 +243,7 @@ class ArticleExtractor:
             # Add delay to be respectful to servers
             await asyncio.sleep(0.5)
 
-            response = self.session.get(url, headers=headers, timeout=30, verify=False)
+            response = self.session.get(url, headers=headers, timeout=30)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, 'html.parser')
